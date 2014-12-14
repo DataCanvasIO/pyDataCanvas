@@ -1,0 +1,2 @@
+boto >= 2.34.0
+pyparsing >= 2.0.3

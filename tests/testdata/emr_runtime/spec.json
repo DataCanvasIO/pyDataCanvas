@@ -1,0 +1,10 @@
+{
+    "Name" : "hello",
+    "Description" : "hello",
+    "Version" : "0.1",
+    "CategoryTags": [],
+    "Cmd" : "python main.py",
+    "Param" : { },
+    "Input" : { },
+    "Output" : { }
+}
