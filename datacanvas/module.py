@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 import json
 import types
 from collections import namedtuple
@@ -143,8 +144,6 @@ def gettype(name):
 
 
 def input_output_builder(spec_input, spec_output):
-    import sys
-
     params = dict(arg.split("=") for arg in sys.argv[1:])
     if not all(k in params for k in spec_input.keys()):
         raise ValueError("Missing input parameters")

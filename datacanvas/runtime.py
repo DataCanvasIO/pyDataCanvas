@@ -282,6 +282,7 @@ class EmrJarRuntime(EmrRuntime):
             raise Exception("EmrJarRuntime : failed to execute steps")
         return [s.value for s in ret_steps.stepids]
 
+
 class PigRuntime(HadoopRuntime):
     def __init__(self, spec_filename="spec.json"):
         super(PigRuntime, self).__init__(spec_filename)
