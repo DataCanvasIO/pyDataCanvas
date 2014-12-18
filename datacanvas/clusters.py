@@ -126,7 +126,9 @@ class EmrCluster(object):
 
         return remote_files
 
-    def emr_step_log_filename(self, step_id, log_file):
+    def emr_step_log_filename(self, step_id, log_file=None):
+        if not log_file:
+            log_file = "/"
         return url_path_join(self.emr_info.loguri, self.jobflow_id, "steps", str(self.emr_steps[step_id]["index"]), log_file)
 
     def emr_step_log(self, step_id, log_file="stdout", local_file=None):

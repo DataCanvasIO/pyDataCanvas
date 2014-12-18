@@ -3,8 +3,10 @@
 import sys
 import time
 import os
+import json
 import subprocess
 import boto
+import boto.emr.emrobject
 from urlparse import urlparse, urlsplit, urlunsplit, urlunparse
 
 
@@ -29,23 +31,6 @@ def cmd(cmd_str):
     ret = subprocess.call(cmd_str, shell=True)
     print("Exit with exit code = %d" % ret)
     return ret
-
-
-def emr_wait_steps(emr_conn, job_flow_id, job_steps):
-    for step_id in job_steps.stepids:
-        while True:
-            ret = emr_conn.describe_step(job_flow_id, step_id.value)
-            step_state = ret.status.state
-            print "Wait EMR jobflow step: jobflow_id='%s' step_id='%s' state='%s'" % \
-                  (job_flow_id, step_id.value, step_state)
-            if step_state in ["PENDING", "RUNNING", "CONTINUE"]:
-                time.sleep(10)
-                continue
-            elif step_state in ['COMPLETED']:
-                break
-            else:
-                return False
-    return True
 
 
 def s3_upload(bucket, local_filename, remote_filename):
@@ -73,7 +58,7 @@ def s3_upload(bucket, local_filename, remote_filename):
         mp = bucket.initiate_multipart_upload(fn_local)
         fp = open(fn_local, 'rb')
         fp_num = 0
-        while (fp.tell() < filesize):
+        while fp.tell() < filesize:
             fp_num += 1
             print "uploading part %i" % fp_num
             mp.upload_part_from_file(fp, fp_num, cb=percent_cb, num_cb=10, size=PART_SIZE)
@@ -173,3 +158,65 @@ def s3join(s3_path, rel_path):
     pr = urlparse(s3_path)
     pr = pr._replace(path=os.path.join(pr.path, rel_path))
     return urlunparse(pr)
+
+
+# TODO: Refactor to 'botocore' when it becomes mature.
+def convert_emr_object(obj):
+    """Convert a boto emrobject into human readable python dict.
+
+    :param obj: A emrobject
+    :return: dict
+    """
+
+    if not isinstance(obj, boto.emr.emrobject.EmrObject):
+        return obj
+
+    if isinstance(obj, boto.emr.emrobject.Step):
+        ret_obj = obj.__dict__
+        ret_obj['args'] = [convert_emr_object(arg) for arg in ret_obj['args']]
+        del ret_obj['connection']
+        return ret_obj
+    elif isinstance(obj, boto.emr.emrobject.HadoopStep):
+        ret_obj = obj.__dict__
+        ret_obj['status'] = convert_emr_object(ret_obj['status'])
+        ret_obj['config'] = convert_emr_object(ret_obj['config'])
+        del ret_obj['connection']
+        return ret_obj
+    elif isinstance(obj, boto.emr.emrobject.ClusterStatus):
+        ret_obj = obj.__dict__
+        ret_obj['timeline'] = convert_emr_object(ret_obj['timeline'])
+        return ret_obj
+    elif isinstance(obj, boto.emr.emrobject.ClusterTimeline):
+        return obj.__dict__
+    elif isinstance(obj, boto.emr.emrobject.StepConfig):
+        ret_obj = obj.__dict__
+        ret_obj['args'] = [convert_emr_object(arg) for arg in ret_obj['args']]
+        return ret_obj
+    elif isinstance(obj, boto.emr.emrobject.Arg):
+        return obj.value
+    elif isinstance(obj, boto.emr.emrobject.JobFlow):
+        ret_obj = obj.__dict__
+        ret_obj['bootstrapactions'] = [convert_emr_object(b) for b in ret_obj['bootstrapactions']]
+        ret_obj['instancegroups'] = [convert_emr_object(b) for b in ret_obj['instancegroups']]
+        ret_obj['steps'] = [convert_emr_object(b) for b in ret_obj['steps']]
+        del ret_obj['connection']
+        return ret_obj
+    elif isinstance(obj, boto.emr.emrobject.BootstrapAction):
+        ret_obj = obj.__dict__
+        ret_obj['args'] = [convert_emr_object(arg) for arg in ret_obj['args']]
+        del ret_obj['connection']
+        return ret_obj
+    elif isinstance(obj, boto.emr.emrobject.InstanceGroup):
+        ret_obj = obj.__dict__
+        del ret_obj['connection']
+        return ret_obj
+    # elif isinstance(obj, boto.emr.emrobject.EmrConnection):
+    #     print "EmrConnection"
+    #     print dir(obj)
+    #     return obj
+
+    return obj
+
+
+def pprint_json(obj):
+    return json.dumps(convert_emr_object(obj), sort_keys=True, indent=4, separators=(',', ': '))

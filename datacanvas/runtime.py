@@ -133,6 +133,46 @@ class EmrRuntime(HadoopRuntime):
     def clean_working_dir(self):
         self.s3_clean_working_dir()
 
+    def dump_logs(self, step_id, log_files=None, retry_count=1, retry_interval=60, extra_wait_count=5):
+        if not log_files:
+            return
+
+        while retry_count > 0:
+            remote_log_files = [os.path.basename(i)
+                                for i in self.cluster.s3_list_files(self.cluster.emr_step_log_filename(step_id))]
+            intersection_files = set(log_files) & set(remote_log_files)
+            if not intersection_files:
+                print "Seems logs are not ready on s3, retry..."
+                retry_count -= 1
+                time.sleep(retry_interval)
+                continue
+            for i in range(extra_wait_count):
+                remote_log_files = [os.path.basename(i)
+                                    for i in self.cluster.s3_list_files(self.cluster.emr_step_log_filename(step_id))]
+                if set(remote_log_files) >= set(["controller", "stdout", "stderr"]):
+                    break
+                print "Fetching s3 logs..."
+                time.sleep(retry_interval)
+            for log_file in log_files:
+                log_path = self.cluster.emr_step_log_filename(step_id, log_file)
+                print "==================================="
+                print "Dump EMR log file (step=%s): %s" % (step_id, log_file)
+                print "Log Path : %s" % log_path
+                print "==================================="
+                if self.cluster.s3_list_files(log_path):
+                    print self.cluster.emr_step_log(step_id, log_file=log_file)
+                else:
+                    print "Log file does not exist"
+            return
+
+    def show_steps_summary(self, step_ids):
+        for sid in step_ids:
+            print "==================================="
+            print "Summary for step: %s" % sid
+            print "==================================="
+            step = self.emr_conn.describe_step(self.job_flow_id, sid)
+            print pprint_json(step)
+
 
 class HiveRuntime(HadoopRuntime):
     def files_uploader(self, local_dir):
@@ -238,18 +278,22 @@ class EmrHiveRuntime(EmrRuntime, HiveRuntime):
     def files_uploader(self, local_dir):
         return self.s3_upload_dir(local_dir)
 
-    def emr_execute_hive(self, s3_hive_script):
+    def emr_execute_hive(self, s3_hive_script, dump_logfiles=None, dump_logfile_retry_count=1):
         from boto.emr.step import HiveStep
 
         hive_step = HiveStep(name=self.get_emr_job_name(), hive_file=s3_hive_script)
         ret_steps = self.emr_conn.add_jobflow_steps(self.job_flow_id, steps=[hive_step])
+        step_ids = [s.value for s in ret_steps.stepids]
+        self.show_steps_summary(step_ids)
 
         print("Waiting jobflow steps...")
-        if not emr_wait_steps(self.emr_conn, self.job_flow_id, ret_steps):
-            raise Exception("EmrHiveRuntime : failed to execute steps")
-        return [s.value for s in ret_steps.stepids]
+        if not self.cluster.emr_wait_steps(self.job_flow_id, ret_steps):
+            for step_id in step_ids:
+                self.dump_logs(step_id, log_files=dump_logfiles, retry_count=dump_logfile_retry_count)
+            raise Exception("EmrHiveRuntime: failed to execute steps")
+        return step_ids
 
-    def execute(self, main_hive_script, generated_hive_script=None):
+    def execute(self, main_hive_script, generated_hive_script=None, dump_logfiles=None, dump_logfile_retry_count=1):
         self.clean_working_dir()
         hive_script_local = self.generate_script(main_hive_script, generated_hive_script)
 
@@ -260,14 +304,14 @@ class EmrHiveRuntime(EmrRuntime, HiveRuntime):
         print(open(hive_script_local).read())
         print("=========================================")
         print("EmrHiveRuntime.execute()")
-        return self.emr_execute_hive(hive_script_remote_full)
+        return self.emr_execute_hive(hive_script_remote_full, dump_logfiles, dump_logfile_retry_count)
 
 
 class EmrJarRuntime(EmrRuntime):
     def __init__(self, spec_filename="spec.json"):
         super(EmrJarRuntime, self).__init__(spec_filename)
 
-    def execute(self, jar_path, args):
+    def execute(self, jar_path, args, dump_logfiles=None, dump_logfile_retry_count=1):
         from boto.emr.step import JarStep
 
         s3_jar_path = s3_upload(self.s3_bucket, jar_path, self.get_s3_working_dir(jar_path))
@@ -276,11 +320,15 @@ class EmrJarRuntime(EmrRuntime):
         print("Add jobflow step")
         step = JarStep(name=self.get_emr_job_name(), jar=s3_jar_path, step_args=args)
         ret_steps = self.emr_conn.add_jobflow_steps(self.job_flow_id, steps=[step])
+        step_ids = [s.value for s in ret_steps.stepids]
+        self.show_steps_summary(step_ids)
 
         print("Waiting jobflow steps...")
-        if not emr_wait_steps(self.emr_conn, self.job_flow_id, ret_steps):
+        if not self.cluster.emr_wait_steps(self.job_flow_id, ret_steps):
+            for step_id in step_ids:
+                self.dump_logs(step_id, log_files=dump_logfiles, retry_count=dump_logfile_retry_count)
             raise Exception("EmrJarRuntime : failed to execute steps")
-        return [s.value for s in ret_steps.stepids]
+        return step_ids
 
 
 class PigRuntime(HadoopRuntime):
@@ -382,19 +430,23 @@ class EmrPigRuntime(EmrRuntime, PigRuntime):
         else:
             raise ValueError("Invalid type for pig, type must start with 'pig.hdfs' or 'pig.s3'")
 
-    def emr_execute_pig(self, pig_filename):
+    def emr_execute_pig(self, pig_filename, dump_logfiles=None, dump_logfile_retry_count=1):
         from boto.emr.step import PigStep
 
         s3_pig_script = self.s3_upload(pig_filename)
         pig_step = PigStep(name=self.get_emr_job_name(), pig_file=s3_pig_script)
         ret_steps = self.emr_conn.add_jobflow_steps(self.job_flow_id, steps=[pig_step])
+        step_ids = [s.value for s in ret_steps.stepids]
+        self.show_steps_summary(step_ids)
 
         print("Waiting jobflow steps...")
-        if not emr_wait_steps(self.emr_conn, self.job_flow_id, ret_steps):
-            raise Exception("EmrHiveRuntime : failed to execute steps")
-        return [s.value for s in ret_steps.stepids]
+        if not self.cluster.emr_wait_steps(self.job_flow_id, ret_steps):
+            for step_id in step_ids:
+                self.dump_logs(step_id, log_files=dump_logfiles, retry_count=dump_logfile_retry_count)
+            raise Exception("EmrPigRuntime: failed to execute steps")
+        return step_ids
 
-    def execute(self, pig_script):
+    def execute(self, pig_script, dump_logfiles=None, dump_logfile_retry_count=1):
         self.clean_working_dir()
 
         # TODO: upload S3 additional files
@@ -404,5 +456,5 @@ class EmrPigRuntime(EmrRuntime, PigRuntime):
         print(open(generated_pig_script).read())
         print("=========================================")
         print("EmrHiveRuntime.execute()")
-        return self.emr_execute_pig(generated_pig_script)
+        return self.emr_execute_pig(generated_pig_script, dump_logfiles, dump_logfile_retry_count)
 
