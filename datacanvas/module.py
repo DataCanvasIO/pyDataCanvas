@@ -113,6 +113,7 @@ class Param(str):
             "float": lambda x: float(x),
             "integer": lambda x: int(x),
             "enum": lambda x: x,
+            "cluster": lambda x: json.loads(x),
             "file": read_whole_file
         }
         param_type = self._typeinfo['Type']
