@@ -4,10 +4,12 @@ import os
 import time
 import boto
 import boto.s3
+import boto.s3.key
 import boto.emr
+from boto.emr.step import HiveStep, JarStep, PigStep
 from itertools import izip
 from datacanvas.utils import cached_property, url_path_join, s3join
-from datacanvas.utils import s3parse, s3_upload
+from datacanvas.utils import s3parse, s3_upload, pprint_aws_obj
 
 
 class EmrCluster(object):
@@ -52,7 +54,8 @@ class EmrCluster(object):
     def emr_steps(self):
         steps = self.emr_conn.list_steps(self.jobflow_id)
 
-        all_steps = [{"index": len(steps.steps) - si, "id": se.id, "name": se.name} for si, se in enumerate(steps.steps)]
+        all_steps = [{"index": len(steps.steps) - si, "id": se.id, "name": se.name}
+                     for si, se in enumerate(steps.steps)]
         steps_dict = {s["id"]: s for s in all_steps}
         return steps_dict
 
@@ -81,13 +84,41 @@ class EmrCluster(object):
             key.delete()
         return True
 
-    def emr_wait_steps(self, job_flow_id, job_steps):
-        for step_id in job_steps.stepids:
+    def emr_execute_jar(self, job_name, s3_jar, args, main_class="", action_on_failure='CONTINUE'):
+        steps = [JarStep(name=job_name, jar=s3_jar,
+                         main_class=main_class,  step_args=args,
+                         action_on_failure=action_on_failure)]
+        ret_steps = self.emr_conn.add_jobflow_steps(self.jobflow_id, steps=steps)
+        step_ids = [s.value for s in ret_steps.stepids]
+        return step_ids
+
+    def emr_execute_hive(self, job_name, s3_hive_scripts):
+        hive_step = [HiveStep(name=job_name, hive_file=hs) for hs in s3_hive_scripts]
+        ret_steps = self.emr_conn.add_jobflow_steps(self.jobflow_id, steps=[hive_step])
+        step_ids = [s.value for s in ret_steps.stepids]
+        return step_ids
+
+    def emr_execute_pig(self, job_name, s3_pig_scripts):
+        pig_step = [PigStep(name=job_name, pig_file=ps) for ps in s3_pig_scripts]
+        ret_steps = self.emr_conn.add_jobflow_steps(self.jobflow_id, steps=[pig_step])
+        step_ids = [s.value for s in ret_steps.stepids]
+        return step_ids
+
+    def emr_describe_steps(self, step_ids):
+        for sid in step_ids:
+            print "==================================="
+            print "Summary for step: %s" % sid
+            print "==================================="
+            step = self.emr_conn.describe_step(self.jobflow_id, sid)
+            print pprint_aws_obj(step)
+
+    def emr_wait_steps(self, stepids):
+        for step_id in stepids:
             while True:
-                ret = self.emr_conn.describe_step(job_flow_id, step_id.value)
+                ret = self.emr_conn.describe_step(self.jobflow_id, step_id)
                 step_state = ret.status.state
                 print "Wait EMR jobflow step: jobflow_id='%s' step_id='%s' state='%s'" % \
-                      (job_flow_id, step_id.value, step_state)
+                      (self.jobflow_id, step_id, step_state)
                 if step_state in ["PENDING", "RUNNING", "CONTINUE"]:
                     time.sleep(10)
                     continue
@@ -117,7 +148,7 @@ class EmrCluster(object):
             remote_files = [s3join(remote_s3_path, os.path.basename(local_path))]
         elif os.path.isdir(local_path):
             upload_files = [os.path.join(dirpath, fn)
-                            for dirpath,dirnames,filenames in os.walk(local_path)
+                            for dirpath, dirnames, filenames in os.walk(local_path)
                             for fn in filenames]
             remote_files = [s3join(remote_s3_path, fn_local) for fn_local in upload_files]
 
@@ -129,7 +160,8 @@ class EmrCluster(object):
     def emr_step_log_filename(self, step_id, log_file=None):
         if not log_file:
             log_file = "/"
-        return url_path_join(self.emr_info.loguri, self.jobflow_id, "steps", str(self.emr_steps[step_id]["index"]), log_file)
+        return url_path_join(self.emr_info.loguri, self.jobflow_id,
+                             "steps", str(self.emr_steps[step_id]["index"]), log_file)
 
     def emr_step_log(self, step_id, log_file="stdout", local_file=None):
         fn = self.emr_step_log_filename(step_id, log_file)
@@ -143,3 +175,4 @@ class EmrCluster(object):
         else:
             # TODO: Not implemented
             raise Exception("Not implemented")
+

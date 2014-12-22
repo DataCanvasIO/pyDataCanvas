@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import time
 import os
 import json
 import subprocess
 import boto
 import boto.emr.emrobject
+import boto.emr.step
 from urlparse import urlparse, urlsplit, urlunsplit, urlunparse
 
 
@@ -210,6 +210,7 @@ def convert_emr_object(obj):
         ret_obj = obj.__dict__
         del ret_obj['connection']
         return ret_obj
+
     # elif isinstance(obj, boto.emr.emrobject.EmrConnection):
     #     print "EmrConnection"
     #     print dir(obj)
@@ -218,5 +219,9 @@ def convert_emr_object(obj):
     return obj
 
 
-def pprint_json(obj):
+def pprint_aws_obj(obj):
     return json.dumps(convert_emr_object(obj), sort_keys=True, indent=4, separators=(',', ': '))
+
+
+def pprint_json(obj):
+    return json.dumps(obj, sort_keys=True, indent=4, separators=(',', ': '))

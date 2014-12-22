@@ -66,10 +66,19 @@ class HadoopRuntime(DatacanvasRuntime):
 class EmrRuntime(HadoopRuntime):
     def __init__(self, spec_filename="spec.json"):
         super(EmrRuntime, self).__init__(spec_filename)
-        p = self.settings.Param
-        self.s3_conn = boto.connect_s3(p.AWS_ACCESS_KEY_ID, p.AWS_ACCESS_KEY_SECRET)
-        self.s3_bucket = self.s3_conn.get_bucket(p.S3_BUCKET)
-        self.cluster = EmrCluster(p.AWS_Region, p.AWS_ACCESS_KEY_ID, p.AWS_ACCESS_KEY_SECRET, p.EMR_jobFlowId)
+        cparam = self.settings.Param.cluster.val
+        cluster_parameters = {p["Name"]: p for p in cparam["Parameters"]}
+        aws_key = cluster_parameters["accessKey"]["Val"]
+        aws_sec = cluster_parameters["accessSecret"]["Val"]
+        s3_bucket = cluster_parameters["S3_BUCKET"]["Val"]
+        aws_region = cluster_parameters["region"]["Val"]
+        jobflow_id = cluster_parameters["jobFlowId"]["Val"]
+        self.s3_conn = boto.connect_s3(aws_key, aws_sec)
+        self.s3_bucket = self.s3_conn.get_bucket(s3_bucket)
+        self.cluster = EmrCluster(aws_region=aws_region,
+                                  aws_key=aws_key,
+                                  aws_secret=aws_sec,
+                                  jobflow_id=jobflow_id)
 
     def get_s3_working_dir(self, path=""):
         ps = self.settings
@@ -143,7 +152,7 @@ class EmrRuntime(HadoopRuntime):
             for i in range(extra_wait_count):
                 remote_log_files = [os.path.basename(i)
                                     for i in self.cluster.s3_list_files(self.cluster.emr_step_log_filename(step_id))]
-                if set(remote_log_files) >= {"controller", "stdout", "stderr"}:
+                if set(remote_log_files) >= set(["controller", "stdout", "stderr"]):
                     break
                 print "Fetching s3 logs..."
                 time.sleep(retry_interval)
@@ -293,12 +302,12 @@ class EmrJarRuntime(EmrRuntime):
     def __init__(self, spec_filename="spec.json"):
         super(EmrJarRuntime, self).__init__(spec_filename)
 
-    def execute(self, jar_path, args, dump_logfiles=None, dump_logfile_retry_count=1):
+    def execute(self, jar_path, args, main_class="", dump_logfiles=None, dump_logfile_retry_count=1):
         s3_jar_path = s3_upload(self.s3_bucket, jar_path, self.get_s3_working_dir(jar_path))
         print("Uploading jar to s3 : %s -> %s" % (jar_path, s3_jar_path))
 
         step_ids = self.cluster.emr_execute_jar(job_name=self.get_emr_job_name(),
-                                                s3_jar=s3_jar_path, args=args)
+                                                s3_jar=s3_jar_path, args=args, main_class=main_class)
         self.cluster.emr_describe_steps(step_ids)
 
         print("Waiting jobflow steps...")
