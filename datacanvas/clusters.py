@@ -110,7 +110,7 @@ class EmrCluster(object):
             print "Summary for step: %s" % sid
             print "==================================="
             step = self.emr_conn.describe_step(self.jobflow_id, sid)
-            print pprint_aws_obj(step)
+            # print pprint_aws_obj(step)
 
     def emr_wait_steps(self, stepids):
         for step_id in stepids:
