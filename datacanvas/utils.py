@@ -271,7 +271,7 @@ def prepare_hadoop_conf_zipfile(fn_zipfile):
     return final_hadoop_conf_dir
 
 
-def prepare_hadoop_conf(fn, safe=True):
+def prepare_hadoop_conf(fn, safe=False):
     def _prepare_hadoop_conf_file(fn):
 
         if tarfile.is_tarfile(fn):

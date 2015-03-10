@@ -340,8 +340,8 @@ class GenericHadoopCluster(BaseCluster):
 
     def __init__(self, **cluster_kws):
         super(GenericHadoopCluster, self).__init__()
-        self.hs2_host = cluster_kws.get("HiveServer2_Host", None)
-        self.hs2_port = cluster_kws.get("HiveServer2_Port", None)
+        self.hs2_host = cluster_kws.get("hive_server2_host", None)
+        self.hs2_port = cluster_kws.get("hive_server2_port", None)
         self.hadoop_conf_dir = self._get_default_hadoop_conf_dir(**cluster_kws)
         self.cluster_env_vars = {}
 
