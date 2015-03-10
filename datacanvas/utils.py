@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import os
-import json
+import sys
+import tempfile
+import tarfile
+import zipfile
+from boto.compat import json
 import subprocess
 import boto
 import boto.emr.emrobject
 import boto.emr.step
-from urlparse import urlparse, urlsplit, urlunsplit, urlunparse
+from urlparse import urlparse, urlsplit, urlunsplit, urlunparse, unquote
+import urllib
+from json import loads as json_loads
+import copy
 
 
 def clean_hdfs_path(p):
@@ -35,7 +41,6 @@ def cmd(cmd_str):
 
 def s3_upload(bucket, local_filename, remote_filename):
 
-    # TODO : should refactor this?
     if urlparse(local_filename).scheme in ["s3", "s3n"]:
         return local_filename
 
@@ -142,7 +147,6 @@ def url_path_join(*parts):
     path = '/'.join(x.strip('/') for x in paths if x)
     return urlunsplit((scheme, netloc, path, query, fragment))
 
-
 def first_of_each(*sequences):
     return (next((x for x in sequence if x), '') for sequence in sequences)
 
@@ -156,9 +160,8 @@ def s3parse(s3_path):
 
 def s3join(s3_path, rel_path):
     pr = urlparse(s3_path)
-    pr = pr._replace(path=os.path.join(pr.path, rel_path))
+    pr = pr._replace(path=os.path.normpath(os.path.join(pr.path, rel_path)))
     return urlunparse(pr)
-
 
 # TODO: Refactor to 'botocore' when it becomes mature.
 def convert_emr_object(obj):
@@ -185,6 +188,7 @@ def convert_emr_object(obj):
     elif isinstance(obj, boto.emr.emrobject.ClusterStatus):
         ret_obj = obj.__dict__
         ret_obj['timeline'] = convert_emr_object(ret_obj['timeline'])
+        ret_obj['statechangereason'] = convert_emr_object(ret_obj['statechangereason'])
         return ret_obj
     elif isinstance(obj, boto.emr.emrobject.ClusterTimeline):
         return obj.__dict__
@@ -210,6 +214,11 @@ def convert_emr_object(obj):
         ret_obj = obj.__dict__
         del ret_obj['connection']
         return ret_obj
+    elif isinstance(obj, boto.emr.emrobject.ClusterStateChangeReason):
+        ret_obj = obj.__dict__
+        return ret_obj
+    else:
+        return str(obj)
 
     # elif isinstance(obj, boto.emr.emrobject.EmrConnection):
     #     print "EmrConnection"
@@ -221,7 +230,112 @@ def convert_emr_object(obj):
 
 def pprint_aws_obj(obj):
     return json.dumps(convert_emr_object(obj), sort_keys=True, indent=4, separators=(',', ': '))
+    # return json.dumps(obj, cls=BotoJsonEncoder)
 
 
 def pprint_json(obj):
     return json.dumps(obj, sort_keys=True, indent=4, separators=(',', ': '))
+
+
+def prepare_hadoop_conf_tarfile(fn_tarfile):
+    tf = tarfile.open(fn_tarfile, "r:*")
+    ti_dirs = [ti.path for ti in tf if ti.isdir()]
+    if len(ti_dirs) > 1:
+        raise Exception("Invalid hadoop_conf archive format. It must contain zero or one dir on top level!")
+
+    tmp_hadoop_dir = tempfile.mkdtemp(prefix="hadoop_conf_")
+    for member in tf.getmembers():
+        if member.isreg():
+            tf.extract(member, tmp_hadoop_dir)
+
+    final_hadoop_conf_dir = os.path.join(tmp_hadoop_dir, *ti_dirs)
+    return final_hadoop_conf_dir
+
+
+def zip_isdir(fn):
+    return fn.endswith("/")
+
+
+def prepare_hadoop_conf_zipfile(fn_zipfile):
+    zf = zipfile.ZipFile(fn_zipfile)
+    zi_dirs = [zi for zi in zf.namelist() if zip_isdir(zi)]
+    if len(zi_dirs) > 1:
+        raise Exception("Invalid hadoop_conf archive format. It must contain zero or one dir on top level!")
+
+    tmp_hadoop_dir = tempfile.mkdtemp(prefix="hadoop_conf_")
+
+    for zi in zf.infolist():
+        zf.extract(zi, tmp_hadoop_dir)
+
+    final_hadoop_conf_dir = os.path.join(tmp_hadoop_dir, *zi_dirs)
+    return final_hadoop_conf_dir
+
+
+def prepare_hadoop_conf(fn, safe=True):
+    def _prepare_hadoop_conf_file(fn):
+
+        if tarfile.is_tarfile(fn):
+            return prepare_hadoop_conf_tarfile(fn)
+        elif zipfile.is_zipfile(fn):
+            return prepare_hadoop_conf_zipfile(fn)
+        else:
+            raise Exception("Can not prepare hadoop_conf archive file: '%s'" % fn)
+
+    def _prepare_hadoop_conf(fn):
+        pr = urlparse(fn)
+        if pr.scheme in ["http", "https"]:
+            with tempfile.NamedTemporaryFile(prefix="tmp_hadoop_conf_") as f:
+                urllib.urlretrieve(fn, f.name)
+                return _prepare_hadoop_conf_file(f.name)
+        elif pr.scheme in ["file"]:
+            return _prepare_hadoop_conf_file(pr.path)
+        elif pr.scheme == '':
+            return _prepare_hadoop_conf_file(fn)
+        else:
+            raise Exception("Do not support file type '%s'" % fn)
+
+    if safe:
+        try:
+            return _prepare_hadoop_conf(fn)
+        except Exception as e:
+            print "WARNING: got exception : %s" % e
+            return None
+    else:
+        return _prepare_hadoop_conf(fn)
+
+
+def preprocess_cluster_envs(base_envs, hadoop_type, cluster_def):
+    base_envs = copy.copy(dict(base_envs))
+
+    def _get_new_env(env_name, env_val):
+
+        if isinstance(env_val, dict):
+            if 'prepend_path' in env_val:
+                ppath = env_val['prepend_path']
+                return ppath + os.pathsep + base_envs.get(env_name)
+            elif 'append_path' in env_val:
+                ppath = env_val['append_path']
+                return base_envs.get(env_name) + os.pathsep + ppath
+            else:
+                # TODO:
+                pass
+        elif isinstance(env_val, basestring):
+            return env_val
+        else:
+            print "WARNING: Invalid basic env_vars from cluster_def. Only string or dict."
+            return None
+
+    if not os.path.isfile(cluster_def):
+        print "WARNING: Can not find definition for clusters, use default one."
+        return base_envs
+    cluster_defs = json_loads(open(cluster_def).read())
+    if hadoop_type not in cluster_defs:
+        print "WARNING: Can not find definition of cluster '%s', use default one." % hadoop_type
+        return base_envs
+
+    for ek, ev in cluster_defs[hadoop_type]["env_vars"].items():
+        ev_new = _get_new_env(ek, ev)
+        if ev_new:
+            # print "%s=%s" % (ek, ev_new)
+            base_envs[ek] = ev_new
+    return base_envs

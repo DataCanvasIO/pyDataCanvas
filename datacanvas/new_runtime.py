@@ -4,187 +4,138 @@
 A series of Runtime.
 """
 
-import boto
-import time
 import itertools
-from datacanvas import EmrCluster
+import functools
+from datacanvas.clusters import EmrCluster, GenericHadoopCluster
 from datacanvas.utils import *
 from datacanvas.module import get_settings_from_file
 
 
-class DatacanvasRuntime(object):
+class BasicRuntime(object):
     def __init__(self, spec_filename="spec.json"):
         self.settings = get_settings_from_file(spec_filename)
 
     def __repr__(self):
         return str(self.settings)
 
+    @staticmethod
+    def cmd(args, shell=False, verbose=True):
+        if verbose:
+            print("Execute External Command : '%s'" % args)
+        ret = subprocess.call(args, shell=shell, env=os.environ.copy())
+        if verbose:
+            print("Exit with exit code = %d" % ret)
+        return ret
 
-class HadoopRuntime(DatacanvasRuntime):
+    @staticmethod
+    def exit(ret_code):
+        sys.exit(ret_code)
+
+
+def HadoopRuntime(*args, **kwargs):
+    from warnings import warn
+    warn("Use 'GenericHadoopRuntime' class! 'HadoopRuntime' is deprecated.")
+    return GenericHadoopRuntime(*args, **kwargs)
+
+
+class EmrRuntime(BasicRuntime):
     def __init__(self, spec_filename="spec.json"):
-        super(HadoopRuntime, self).__init__(spec_filename=spec_filename)
+        super(EmrRuntime, self).__init__(spec_filename)
+        self.grt = GenericHadoopRuntime()
 
-    @property
-    def hdfs_root(self):
-        ps = self.settings
-        if 'hdfs_root' in ps.Param._asdict():
-            return ps.Param.hdfs_root.val
-        else:
-            return '/'
+    def get_s3_working_dir(self, path=""):
+        return self.grt.get_working_dir(path)
 
-    def get_hdfs_working_dir(self, path=""):
-        ps = self.settings
-        glb_vars = ps.GlobalParam
-        remote_path = os.path.normpath(
-            os.path.join('tmp/zetjob', glb_vars['userName'], "job%s" % glb_vars['jobId'], "blk%s" % glb_vars['blockId'],
-                         path))
-        return os.path.join(self.hdfs_root, remote_path)
+    def get_emr_job_name(self):
+        return self.grt.get_job_name()
+
+
+class HiveRuntime(BasicRuntime):
+    def __init__(self, spec_filename="spec.json"):
+        super(HiveRuntime, self).__init__(spec_filename)
+        self.grt = GenericHadoopRuntime()
+
+    def execute(self, hive_script, generated_hive_script=None):
+        return self.grt.execute_hive(hive_script)
+
+
+class EmrHiveRuntime(BasicRuntime):
+    def __init__(self, spec_filename="spec.json"):
+        super(EmrHiveRuntime, self).__init__(spec_filename)
+        self.grt = GenericHadoopRuntime()
+
+    def execute(self, main_hive_script, generated_hive_script=None, dump_logfiles=None, dump_logfile_retry_count=1):
+        return self.grt.execute_hive(main_hive_script,
+                                     logfiles=dump_logfiles,
+                                     retry_count=dump_logfile_retry_count)
+
+
+class PigRuntime(BasicRuntime):
+    def __init__(self, spec_filename="spec.json"):
+        super(PigRuntime, self).__init__(spec_filename)
+        self.grt = GenericHadoopRuntime()
+
+    def execute(self, pig_script):
+        self.grt.execute_pig(pig_script)
+
+
+class EmrPigRuntime(BasicRuntime):
+    def __init__(self, spec_filename="spec.json"):
+        super(EmrPigRuntime, self).__init__(spec_filename)
+        self.grt = GenericHadoopRuntime()
+
+    def execute(self, pig_script, dump_logfiles=None, dump_logfile_retry_count=1):
+        return self.grt.execute_pig(pig_script,
+                                    logfiles=dump_logfiles,
+                                    retry_count=dump_logfile_retry_count)
+
+
+class ScriptBuilder(object):
+
+    def __init__(self, settings, s3_working_root, hdfs_working_root):
+        self.settings = settings
+        self.s3_working_root = s3_working_root
+        self.hdfs_working_root = hdfs_working_root
+
+    def get_hdfs_working_dir(self, dir_path=""):
+        return s3join(self.hdfs_working_root, dir_path)
+
+    def get_s3_working_dir(self, dir_path=""):
+        return s3join(self.s3_working_root, dir_path)
+
+
+class HiveScriptBuilder(ScriptBuilder):
+
+    def __init__(self, settings, s3_working_root, hdfs_working_root):
+        super(HiveScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root)
 
     def get_hive_namespace(self):
         ps = self.settings
         glb_vars = ps.GlobalParam
-        return "zetjobns_%s_job%s_blk%s" % (glb_vars['userName'], glb_vars['jobId'], glb_vars['blockId'])
+        return "zetjobns_{userName}_job{job_id}_blk{blk_id}".format(
+            userName=glb_vars['userName'],
+            job_id=glb_vars['jobId'],
+            blk_id=glb_vars['blockId'])
 
-    def hdfs_upload_dir(self, local_dir):
-        for root_dir, dirs, files in os.walk(local_dir):
-            for f in sorted(files):
-                f = os.path.normpath(os.path.join(root_dir, f))
-                f_remote = self.get_hdfs_working_dir(f)
-                hdfs_safe_upload(f, f_remote)
-                yield f_remote
-
-    def hdfs_clean_working_dir(self):
-        hdfs_working_dir = self.get_hdfs_working_dir()
-        if not clean_hdfs_path(hdfs_working_dir):
-            # TODO : refactor to 'HiveException'
-            raise Exception("Can not clean hdfs path : %s" % hdfs_working_dir)
-
-    def clean_working_dir(self):
-        self.hdfs_clean_working_dir()
-
-
-class EmrRuntime(HadoopRuntime):
-    def __init__(self, spec_filename="spec.json"):
-        super(EmrRuntime, self).__init__(spec_filename)
-        cparam = self.settings.Param.cluster.val
-        cluster_parameters = {p["Name"]: p for p in cparam["Parameters"]}
-        aws_key = cluster_parameters["accessKey"]["Val"]
-        aws_sec = cluster_parameters["accessSecret"]["Val"]
-        s3_bucket = cluster_parameters["S3_BUCKET"]["Val"]
-        aws_region = cluster_parameters["region"]["Val"]
-        jobflow_id = cluster_parameters["jobFlowId"]["Val"]
-        self.s3_conn = boto.connect_s3(aws_key, aws_sec)
-        self.s3_bucket = self.s3_conn.get_bucket(s3_bucket)
-        self.cluster = EmrCluster(aws_region=aws_region,
-                                  aws_key=aws_key,
-                                  aws_secret=aws_sec,
-                                  jobflow_id=jobflow_id)
-
-    def get_s3_working_dir(self, path=""):
+    def get_hive_table(self, output_name):
         ps = self.settings
         glb_vars = ps.GlobalParam
-        remote_path = os.path.normpath(
-            os.path.join(self.s3_bucket.name, 'zetjob', glb_vars['userName'], "job%s" % glb_vars['jobId'],
-                         "blk%s" % glb_vars['blockId'], path))
-        return os.path.join("s3://", remote_path)
-
-    def get_emr_job_name(self):
-        ps = self.settings
-        glb_vars = ps.GlobalParam
-        return os.path.join('zetjob', glb_vars['userName'], "job%s" % glb_vars['jobId'], "blk%s" % glb_vars['blockId'])
-
-    def s3_upload_dir(self, local_dir):
-        print("EmrHiveRuntime.s3_uploader()")
-        print("s3_upload_dir :::: %s" % local_dir)
-
-        if local_dir == "":
-            return
-
-        if not os.path.isdir(local_dir):
-            return
-
-        s3_upload_dir = self.get_s3_working_dir(local_dir)
-        ext_files = [f for f in sorted(os.listdir(local_dir)) if os.path.isfile(os.path.join(local_dir, f))]
-        for f in ext_files:
-            f_local = os.path.join(local_dir, f)
-            f_remote_full = self.get_s3_working_dir(os.path.join(local_dir, f))
-
-            print("S3 Upload      :: %s ====> %s" % (f_local, s3_upload_dir))
-            print("S3 remote_full :: %s" % f_remote_full)
-            yield s3_upload(self.s3_bucket, f_local, f_remote_full)
-
-    def s3_clean_working_dir(self):
-        s3_working_dir = self.get_s3_working_dir()
-        if not s3_delete(self.s3_bucket, s3_working_dir):
-            # TODO : refactor to 'HiveException'
-            raise Exception("Can not clean s3 path : %s" % s3_working_dir)
-
-    def s3_upload(self, filename):
-        from urlparse import urlparse
-
-        parse_ret = urlparse(filename)
-        if parse_ret.scheme == '':
-            s3_working_dir = self.get_s3_working_dir()
-            file_remote = os.path.join(s3_working_dir, os.path.normpath(os.path.basename(filename)))
-            file_remote_full = s3_upload(self.s3_bucket, filename, file_remote)
-            return file_remote_full
-        elif parse_ret.scheme == 's3':
-            return filename
-        else:
-            raise ValueError("Invalid filename to upload to s3: %s" % filename)
-
-    def clean_working_dir(self):
-        self.s3_clean_working_dir()
-
-    def dump_logs(self, step_id, log_files=None, retry_count=1, retry_interval=60, extra_wait_count=5):
-        if not log_files:
-            return
-
-        while retry_count > 0:
-            remote_log_files = [os.path.basename(i)
-                                for i in self.cluster.s3_list_files(self.cluster.emr_step_log_filename(step_id))]
-            intersection_files = set(log_files) & set(remote_log_files)
-            if not intersection_files:
-                print "Seems logs are not ready on s3, retry..."
-                retry_count -= 1
-                time.sleep(retry_interval)
-                continue
-            for i in range(extra_wait_count):
-                remote_log_files = [os.path.basename(i)
-                                    for i in self.cluster.s3_list_files(self.cluster.emr_step_log_filename(step_id))]
-                if set(remote_log_files) >= set(["controller", "stdout", "stderr"]):
-                    break
-                print "Fetching s3 logs..."
-                time.sleep(retry_interval)
-            for log_file in log_files:
-                log_path = self.cluster.emr_step_log_filename(step_id, log_file)
-                print "==================================="
-                print "Dump EMR log file (step=%s): %s" % (step_id, log_file)
-                print "Log Path : %s" % log_path
-                print "==================================="
-                if self.cluster.s3_list_files(log_path):
-                    print self.cluster.emr_step_log(step_id, log_file=log_file)
-                else:
-                    print "Log file does not exist"
-            return
-
-
-class HiveRuntime(HadoopRuntime):
-    def files_uploader(self, local_dir):
-        return self.hdfs_upload_dir(local_dir)
+        return "zetjob_{userName}_job{job_id}_blk{blk_id}_OUTPUT_{output_name}".format(
+            userName=glb_vars['userName'],
+            job_id=glb_vars['jobId'],
+            blk_id=glb_vars['blockId'],
+            output_name=output_name)
 
     def hive_output_builder(self, output_name, output_obj):
-        # TODO: refactor this method
-        ps = self.settings
-        glb_vars = ps.GlobalParam
         out_type = output_obj.types[0]
         if out_type.startswith("hive.table"):
-            return "zetjob_%s_job%s_blk%s_OUTPUT_%s" % (
-                glb_vars['userName'], glb_vars['jobId'], glb_vars['blockId'], output_name)
+            return self.get_hive_table(output_name)
         elif out_type.startswith("hive.hdfs"):
             return self.get_hdfs_working_dir("OUTPUT_%s" % output_name)
+        elif out_type.startswith("hive.s3"):
+            return self.get_s3_working_dir("OUTPUT_%s" % output_name)
         else:
-            raise ValueError("Invalid type for hive, type must start with 'hive.table' or 'hive.hdfs'")
+            raise ValueError("Invalid type for hive, type must start with 'hive.table' or 'hive.hdfs' or 'hive.s3'")
 
     def header_builder(self, hive_ns, uploaded_files, uploaded_jars):
         # Build Output Tables
@@ -196,37 +147,20 @@ class HiveRuntime(HadoopRuntime):
                 ["ADD FILE %s;" % f for f in uploaded_files],
                 ["ADD JAR %s;" % f for f in uploaded_jars],
                 ["set hivevar:MYNS = %s;" % hive_ns],
-                ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in self.settings.Param._asdict().items()],
+                ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in self.settings.Param._asdict().items() if v.is_primitive],
                 ["set hivevar:INPUT_%s = %s;" % (k, v.val) for k, v in self.settings.Input._asdict().items()],
                 ["set hivevar:OUTPUT_%s = %s;" % (k, v.val) for k, v in self.settings.Output._asdict().items()]))
 
-    def clean_working_dir(self):
-        self.hdfs_clean_working_dir()
-
-    def generate_script(self, hive_script, target_filename=None):
+    def generate_script(self, hive_script, uploaded_files, uploaded_jars):
         hive_ns = self.get_hive_namespace()
-
-        # Upload files and UDF jars
-        if 'FILE_DIR' in self.settings.Param._asdict():
-            file_dir = self.settings.Param.FILE_DIR
-            uploaded_files = self.files_uploader(file_dir.val)
-        else:
-            uploaded_files = []
-
-        if 'UDF_DIR' in self.settings.Param._asdict():
-            jar_dir = self.settings.Param.UDF_DIR
-            uploaded_jars = self.files_uploader(jar_dir.val)
-        else:
-            uploaded_jars = []
 
         # Build Input, Output and Param
         header = self.header_builder(hive_ns, uploaded_files, uploaded_jars)
-        if target_filename:
-            import tempfile
 
-            tmp_file = tempfile.NamedTemporaryFile(prefix="hive_generated_", suffix=".hql", delete=False)
-            tmp_file.close()
-            target_filename = tmp_file.name
+        import tempfile
+        tmp_file = tempfile.NamedTemporaryFile(prefix="hive_generated_", suffix=".hql", delete=False)
+        tmp_file.close()
+        target_filename = tmp_file.name
 
         with open(hive_script, "r") as f, open(target_filename, "w+") as out_f:
             out_f.write("--------------------------\n")
@@ -242,96 +176,20 @@ class HiveRuntime(HadoopRuntime):
 
         return target_filename
 
-    def execute(self, hive_script, generated_hive_script=None):
-        self.clean_working_dir()
-        generated_hive_script = self.generate_script(hive_script, generated_hive_script)
 
-        if cmd("beeline -u jdbc:hive2://%s:%s -n hive -p tiger -d org.apache.hive.jdbc.HiveDriver -f '%s' --verbose=true "
-            % (self.settings.Param.HiveServer2_Host, self.settings.Param.HiveServer2_Port, generated_hive_script)) != 0:
-            raise Exception("Failed to execute hive script : %s" % generated_hive_script)
+class PigScriptBuilder(ScriptBuilder):
 
+    def __init__(self, settings, s3_working_root, hdfs_working_root):
+        super(PigScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root)
 
-class EmrHiveRuntime(EmrRuntime, HiveRuntime):
-    def __init__(self, spec_filename="spec.json"):
-        super(EmrHiveRuntime, self).__init__(spec_filename)
-
-    def hive_output_builder(self, output_name, output_obj):
-        # TODO : should refactor this function to base class
-        ps = self.settings
-        glb_vars = ps.GlobalParam
+    def pig_output_builder(self, output_name, output_obj):
         out_type = output_obj.types[0]
-        if out_type.startswith("hive.table"):
-            return "zetjob_%s_job%s_blk%s_OUTPUT_%s" % (
-                glb_vars['userName'], glb_vars['jobId'], glb_vars['blockId'], output_name)
-        elif out_type.startswith("hive.hdfs"):
+        if out_type.startswith("hdfs"):
             return self.get_hdfs_working_dir("OUTPUT_%s" % output_name)
-        elif out_type.startswith("hive.s3"):
+        elif out_type.startswith("s3"):
             return self.get_s3_working_dir("OUTPUT_%s" % output_name)
         else:
             raise ValueError("Invalid type for hive, type must start with 'hive.table' or 'hive.hdfs' or 'hive.s3'")
-
-    def files_uploader(self, local_dir):
-        return self.s3_upload_dir(local_dir)
-
-    def emr_execute_hive(self, s3_hive_script, dump_logfiles=None, dump_logfile_retry_count=1):
-        step_ids = self.cluster.emr_execute_hive(self.get_emr_job_name(), [s3_hive_script])
-        self.cluster.emr_describe_steps(step_ids)
-
-        print("Waiting jobflow steps...")
-        if not self.cluster.emr_wait_steps(step_ids):
-            for step_id in step_ids:
-                self.dump_logs(step_id, log_files=dump_logfiles, retry_count=dump_logfile_retry_count)
-            raise Exception("EmrHiveRuntime: failed to execute steps")
-        return step_ids
-
-    def execute(self, main_hive_script, generated_hive_script=None, dump_logfiles=None, dump_logfile_retry_count=1):
-        self.clean_working_dir()
-        hive_script_local = self.generate_script(main_hive_script, generated_hive_script)
-
-        s3_working_dir = self.get_s3_working_dir()
-        hive_script_remote = os.path.join(s3_working_dir, os.path.basename(hive_script_local))
-        hive_script_remote_full = s3_upload(self.s3_bucket, hive_script_local, hive_script_remote)
-        print("========= Generated Hive Script =========")
-        print(open(hive_script_local).read())
-        print("=========================================")
-        print("EmrHiveRuntime.execute()")
-        return self.emr_execute_hive(hive_script_remote_full, dump_logfiles, dump_logfile_retry_count)
-
-
-class EmrJarRuntime(EmrRuntime):
-    def __init__(self, spec_filename="spec.json"):
-        super(EmrJarRuntime, self).__init__(spec_filename)
-
-    def execute(self, jar_path, args, main_class="", dump_logfiles=None, dump_logfile_retry_count=1):
-        s3_jar_path = s3_upload(self.s3_bucket, jar_path, self.get_s3_working_dir(jar_path))
-        print("Uploading jar to s3 : %s -> %s" % (jar_path, s3_jar_path))
-
-        step_ids = self.cluster.emr_execute_jar(job_name=self.get_emr_job_name(),
-                                                s3_jar=s3_jar_path, args=args, main_class=main_class)
-        self.cluster.emr_describe_steps(step_ids)
-
-        print("Waiting jobflow steps...")
-        if not self.cluster.emr_wait_steps(step_ids):
-            for step_id in step_ids:
-                self.dump_logs(step_id, log_files=dump_logfiles, retry_count=dump_logfile_retry_count)
-            raise Exception("EmrJarRuntime : failed to execute steps")
-        return step_ids
-
-
-class PigRuntime(HadoopRuntime):
-    def __init__(self, spec_filename="spec.json"):
-        super(PigRuntime, self).__init__(spec_filename)
-
-    def files_uploader(self, local_dir):
-        return self.hdfs_upload_dir(local_dir)
-
-    def pig_output_builder(self, output_name, output_obj):
-        # TODO: refactor this method
-        out_type = output_obj.types[0]
-        if out_type.startswith("pig.hdfs"):
-            return self.get_hdfs_working_dir("OUTPUT_%s" % output_name)
-        else:
-            raise ValueError("Invalid type for pig, type must start with 'pig.hdfs'")
 
     def header_builder(self, uploaded_jars):
         # Build Output Tables
@@ -340,27 +198,26 @@ class PigRuntime(HadoopRuntime):
 
         return "\n".join(
             itertools.chain(
-                ["%%declare PARAM_%s '%s'" % (k, v) for k, v in self.settings.Param._asdict().items()],
-                ["%%declare INPUT_%s '%s'" % (k, v.val) for k, v in self.settings.Input._asdict().items()],
-                ["%%declare OUTPUT_%s '%s'" % (k, v.val) for k, v in self.settings.Output._asdict().items()],
-                ["REGISTER '%s';" % f for f in uploaded_jars]
+                ["%%declare PARAM_%s '%s'" % (k, v)
+                 for k, v in self.settings.Param._asdict().items()
+                 if v.is_primitive],
+                ["%%declare INPUT_%s '%s'" % (k, v.val)
+                 for k, v in self.settings.Input._asdict().items()],
+                ["%%declare OUTPUT_%s '%s'" % (k, v.val)
+                 for k, v in self.settings.Output._asdict().items()],
+                ["REGISTER '%s';" % f
+                 for f in uploaded_jars]
             ))
 
-    def generate_script(self, pig_script, target_filename=None):
-        if 'UDF_DIR' in self.settings.Param._asdict():
-            jar_dir = self.settings.Param.UDF_DIR
-            uploaded_jars = self.files_uploader(jar_dir.val)
-        else:
-            uploaded_jars = []
+    def generate_script(self, pig_script, uploaded_jars):
 
         # Build Input, Output and Param
         header = self.header_builder(uploaded_jars)
-        if target_filename:
-            import tempfile
 
-            tmp_file = tempfile.NamedTemporaryFile(prefix="pig_generated_", suffix=".hql", delete=False)
-            tmp_file.close()
-            target_filename = tmp_file.name
+        import tempfile
+        tmp_file = tempfile.NamedTemporaryFile(prefix="pig_generated_", suffix=".pig", delete=False)
+        tmp_file.close()
+        target_filename = tmp_file.name
 
         with open(pig_script, "r") as f, open(target_filename, "w+") as out_f:
             out_f.write("/*************************\n")
@@ -377,65 +234,158 @@ class PigRuntime(HadoopRuntime):
 
         return target_filename
 
-    def generate_pig_conf(self):
-        ps = self.settings
 
-        with open("/home/run/pig.properties", "a") as pf:
-            pf.write("fs.default.name=%s\n" % ps.Param.hdfs_root)
-            pf.write("yarn.resourcemanager.address=%s\n" % ps.Param.yarn_address)
-            pf.write("yarn.resourcemanager.scheduler.address=%s\n" % ps.Param.yarn_scheduler_address)
-        cmd("cat /home/run/pig.properties")
+class GenericHadoopRuntime(BasicRuntime):
 
-    def execute(self, pig_script):
-        self.clean_working_dir()
+    def __init__(self, cluster_var_name="cluster"):
+        super(GenericHadoopRuntime, self).__init__()
+        self.hadoop_type = None
+        self.cluster = None
+        self.working_root = None
+        self.hdfs_working_root = None
+        self.s3_working_root = None
+        self.global_params = self.settings.GlobalParam
+        self.cluster_params = None
 
-        self.generate_pig_conf()
-        generated_pig_script = self.generate_script(pig_script)
-        print("========= Generated Pig Script =========")
-        print(open(generated_pig_script).read())
-        print("=========================================")
-        print("EmrHiveRuntime.execute()")
-        cmd("pig -x mapreduce -P /home/run/pig.properties %s" % generated_pig_script)
+        param_dict = self.settings.Param._asdict()
+        if param_dict.has_key(cluster_var_name) and param_dict.get(cluster_var_name).is_cluster:
+            cluster_type = self._get_cluster_type(cluster_var_name)
+            print param_dict.get(cluster_var_name).type
+            print "=================================================="
+            print "Use cluster var :: '%s'" % cluster_var_name
+            print "           type :: '%s'" % cluster_type
+            print "=================================================="
+            self.switch_hadoop_env(cluster_type, cluster_var_name)
 
+    def _get_cluster_type(self, cluster_var_name):
+        cparam = self.settings.Param._asdict().get(cluster_var_name).val
+        return cparam["Type"]
 
-class EmrPigRuntime(EmrRuntime, PigRuntime):
-    def __init__(self, spec_filename="spec.json"):
-        super(EmrPigRuntime, self).__init__(spec_filename)
+    def _get_cluster_params(self, cluster_var_name):
+        cparam = self.settings.Param._asdict().get(cluster_var_name).val
+        cluster_params = {p["Name"]: p.get("Val", None) for p in cparam["Parameters"]}
+        return cluster_params
 
-    def files_uploader(self, local_dir):
-        return self.s3_upload_dir(local_dir)
+    def switch_hadoop_env(self, hadoop_type, cluster_var_name="cluster", extra_env_vars=None):
+        print "Switch to Hadoop type = '%s'" % hadoop_type
+        cluster_params = self._get_cluster_params(cluster_var_name)
+        self.cluster_params = cluster_params
 
-    def pig_output_builder(self, output_name, output_obj):
-        out_type = output_obj.types[0]
-        if out_type.startswith("pig.hdfs"):
-            return self.get_hdfs_working_dir("OUTPUT_%s" % output_name)
-        elif out_type.startswith("pig.s3"):
-            return self.get_s3_working_dir("OUTPUT_%s" % output_name)
+        if hadoop_type in ["EMR", "EMR_SPOT"]:
+            self.hadoop_type = hadoop_type
+            self.cluster = EmrCluster(aws_region=cluster_params["region"],
+                                      aws_key=cluster_params["accessKey"],
+                                      aws_secret=cluster_params["accessSecret"],
+                                      jobflow_id=cluster_params["jobFlowId"])
+            self.cluster.prepare(hadoop_type, **cluster_params)
+            self.working_root = self.cluster.get_working_root(cluster_params, self.global_params)
+            self.s3_working_root = self.working_root
+            self.hdfs_working_root = "/"
+        elif hadoop_type in ["CDH4", "CDH5"]:
+            self.hadoop_type = hadoop_type
+            self.cluster = GenericHadoopCluster(**cluster_params)
+            self.cluster.prepare(hadoop_type, **cluster_params)
+            self.working_root = self.cluster.get_working_root(cluster_params, self.global_params)
+            self.s3_working_root = None
+            self.hdfs_working_root = cluster_params["hdfs_root"]
         else:
-            raise ValueError("Invalid type for pig, type must start with 'pig.hdfs' or 'pig.s3'")
+            # if hadoop_type in ["CDH4", "CDH5"]:
+            raise Exception("Do NOT support hadoop_type '%s'" % hadoop_type)
 
-    def emr_execute_pig(self, pig_filename, dump_logfiles=None, dump_logfile_retry_count=1):
-        s3_pig_script = self.s3_upload(pig_filename)
+        self.cluster.clean_working_dir(self.working_root)
+        print self.working_root
 
-        step_ids = self.cluster.emr_execute_pig(job_name=self.get_emr_job_name(), s3_pig_scripts=[s3_pig_script])
-        self.cluster.emr_describe_steps(step_ids)
+    def get_working_dir(self, path=""):
+        if not self.working_root:
+            raise ValueError("Did NOT define 'working_root'!")
 
-        print("Waiting jobflow steps...")
-        if not self.cluster.emr_wait_steps(step_ids):
-            for step_id in step_ids:
-                self.dump_logs(step_id, log_files=dump_logfiles, retry_count=dump_logfile_retry_count)
-            raise Exception("EmrPigRuntime: failed to execute steps")
-        return step_ids
+        return s3join(self.working_root, path)
 
-    def execute(self, pig_script, dump_logfiles=None, dump_logfile_retry_count=1):
-        self.clean_working_dir()
+    def get_job_name(self):
+        ps = self.settings
+        glb_vars = ps.GlobalParam
+        return os.path.join('zetjob', glb_vars['userName'],
+                            "job%s" % glb_vars['jobId'], "blk%s" % glb_vars['blockId'])
 
-        # TODO: upload S3 additional files
+    def execute_jar(self, jar_path, jar_args, main_class="", *args, **kwargs):
+        job_name = self.get_job_name()
 
-        generated_pig_script = self.generate_script(pig_script)
-        print("========= Generated Pig Script =========")
-        print(open(generated_pig_script).read())
-        print("=========================================")
-        print("EmrHiveRuntime.execute()")
-        return self.emr_execute_pig(generated_pig_script, dump_logfiles, dump_logfile_retry_count)
+        remote_jar_path = self.cluster.prepare_working_file(self.working_root, jar_path)
+        return self.cluster.execute_jar(job_name=job_name, jar_path=remote_jar_path,
+                                        jar_args=jar_args, main_class=main_class,
+                                        *args, **kwargs)
 
+    def execute_hive(self, hive_main, *args, **kwargs):
+        job_name = self.get_job_name()
+
+        hb = HiveScriptBuilder(self.settings,
+                               s3_working_root=self.s3_working_root,
+                               hdfs_working_root=self.hdfs_working_root)
+        generated_hql = hb.generate_script(hive_main, [], [])
+        remote_hive_script = self.cluster.prepare_working_file(self.working_root, generated_hql)
+        return self.cluster.execute_hive(job_name=job_name,
+                                         hive_script=remote_hive_script,
+                                         *args, **kwargs)
+
+    def execute_pig(self, pig_main, *args, **kwargs):
+        job_name = self.get_job_name()
+
+        pb = PigScriptBuilder(self.settings,
+                              s3_working_root=self.s3_working_root,
+                              hdfs_working_root=self.hdfs_working_root)
+        generated_pig = pb.generate_script(pig_main, [])
+        remote_pig_script = self.cluster.prepare_working_file(self.working_root, generated_pig)
+        return self.cluster.execute_pig(job_name=job_name,
+                                        pig_script=remote_pig_script,
+                                        *args, **kwargs)
+
+
+##############
+# Decorators #
+##############
+
+class DataCanvas(object):
+    """DataCanvas"""
+
+    def __init__(self, name):
+        self._name = name
+        self._graph = []
+        self._rt = None
+
+    def basic_runtime(self, spec_json="spec.json"):
+        def decorator(method):
+            rt = BasicRuntime(spec_filename=spec_json)
+            params = rt.settings.Param
+            inputs = rt.settings.Input
+            outputs = rt.settings.Output
+
+            @functools.wraps(method)
+            def wrapper(_rt=rt, _params=params, _inputs=inputs, _outputs=outputs):
+                print rt
+                method(_rt, _params, _inputs, _outputs)
+
+            self._graph.append(wrapper)
+            return wrapper
+
+        return decorator
+
+    def hadoop_runtime(self, spec_json="spec.json"):
+        def decorator(method):
+            rt = GenericHadoopRuntime(cluster_var_name="cluster")
+            params = rt.settings.Param
+            inputs = rt.settings.Input
+            outputs = rt.settings.Output
+
+            @functools.wraps(method)
+            def wrapper(_rt=rt, _params=params, _inputs=inputs, _outputs=outputs):
+                print rt
+                method(_rt, _params, _inputs, _outputs)
+
+            self._graph.append(wrapper)
+            return wrapper
+
+        return decorator
+
+    def run(self):
+        for m in self._graph:
+            m()

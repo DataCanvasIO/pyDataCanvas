@@ -6,6 +6,7 @@ import sys
 import json
 import types
 from collections import namedtuple
+from datacanvas.io_types import load_io_obj
 
 
 class Input(str):
@@ -38,13 +39,22 @@ class Input(str):
         ds = json.loads(open(self.x, mode).read())
         return ds
 
+    def as_obj(self):
+        ds = load_io_obj(self.x)
+        return ds
+
+    def as_raw(self):
+        return str(self.x)
+
     @property
     def val(self):
-        # TODO: fix types handling
-        if any([re.match(r"datasource.*", t) for t in self._types]):
-            return self.as_datasource()['URL']
+        """Unboxing Input depends on its types."""
+        if "any" in self._types:
+            return self.as_raw()
+        elif any([re.match(r"raw.*", t) for t in self._types]):
+            return self.as_raw()
         else:
-            return self.as_first_line()
+            return self.as_obj()
 
     @property
     def types(self):
@@ -77,9 +87,22 @@ class Output(str):
     def as_file(self, mode="r"):
         return open(self.x, mode)
 
+    def as_obj(self):
+        ds = load_io_obj(self.x)
+        return ds
+
+    def as_raw(self):
+        return str(self.x)
+
     @property
     def val(self):
-        return self.as_first_line()
+        """Unboxing Input depends on its types."""
+        if "any" in self._types:
+            return self.as_raw()
+        elif any([re.match(r"raw.*", t) for t in self._types]):
+            return self.as_raw()
+        else:
+            return load_io_obj(self.x)
 
     @val.setter
     def val(self, value):
@@ -105,6 +128,18 @@ class Param(str):
 
     def __str__(self):
         return str(self._x)
+
+    @property
+    def type(self):
+        return self._typeinfo['Type']
+
+    @property
+    def is_primitive(self):
+        return self._typeinfo['Type'] not in ["cluster"]
+
+    @property
+    def is_cluster(self):
+        return self._typeinfo['Type'] in ["cluster"]
 
     @property
     def val(self):
