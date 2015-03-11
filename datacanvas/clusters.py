@@ -424,6 +424,9 @@ class GenericHadoopCluster(BaseCluster):
         pass
 
     def execute_hive(self, job_name, hive_script, **kwargs):
+        if (not self.hs2_host) or (not self.hs2_port):
+            raise Exception("Either 'hive_server2_host' or 'hive_server2_port' is not defined.")
+
         hive_db = kwargs.get("db", "default")
         hive_jdbc = "jdbc:hive2://%s:%s/%s" % (self.hs2_host, self.hs2_port, hive_db)
         return self.hadoop_cmd(["beeline", "-u", hive_jdbc,
