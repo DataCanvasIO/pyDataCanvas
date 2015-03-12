@@ -17,38 +17,74 @@ def _create_property(field_name, docstring, read_only=False, from_meta=False):
     def setter(self, value):
         if from_meta:
             if 'Meta' not in self:
-                raise ValueError("Can not find '%s'" % field_name)
+                self['Meta'] = {}
             self['Meta'][field_name] = value
         else:
             self[field_name] = value
+
+    def deleter(self):
+        if from_meta:
+            del self['Meta'][field_name]
+        else:
+            del self[field_name]
 
     if read_only:
         docstring = docstring + "\n\nThis attribute is read-only."
 
     if not read_only:
-        return property(getter, setter, doc=docstring)
+        return property(getter, setter, deleter, doc=docstring)
     return property(getter, doc=docstring)
 
 
 class BaseIO(dict):
     Type = _create_property("Type", "", read_only=False, from_meta=False)
 
+    def _init_attrs(self, attrs):
+        for attr_name in attrs.keys():
+            if hasattr(self.__class__, attr_name) and isinstance(getattr(DS_Hive, attr_name), property):
+                setattr(self, attr_name, attrs.pop(attr_name))
+
+    def __init__(self, **attrs):
+        self._init_attrs(attrs)
+        super(BaseIO, self).__init__(**attrs)
+
+
 class DS_File(BaseIO):
     URL = _create_property("URL", "", read_only=False, from_meta=False)
+
+    def __init__(self, **attrs):
+        attrs["Type"] = 'datasource.file'
+        super(DS_File, self).__init__(**attrs)
+
 
 class DS_S3(BaseIO):
     URL = _create_property("URL", "", read_only=False, from_meta=False)
     aws_key = _create_property("key", "", read_only=False, from_meta=True)
     aws_security = _create_property("token", "", read_only=False, from_meta=True)
 
+    def __init__(self, **attrs):
+        attrs["Type"] = 'datasource.s3'
+        super(DS_S3, self).__init__(**attrs)
+
+
 class DS_HDFS(BaseIO):
     URL = _create_property("URL", "", read_only=False, from_meta=False)
     port = _create_property("port", "", read_only=False, from_meta=True)
 
+    def __init__(self, **attrs):
+        attrs["Type"] = 'datasource.hdfs'
+        super(DS_HDFS, self).__init__(**attrs)
+
+
 class DS_Hive(BaseIO):
     URL = _create_property("URL", "", read_only=False, from_meta=False)
-    meta_server = _create_property("HiveServer2", "", read_only=False, from_meta=True)
-    meta_port = _create_property("HiveServer2_Port", "", read_only=False, from_meta=True)
+    meta_server = _create_property("hive_server2_host", "", read_only=False, from_meta=True)
+    meta_port = _create_property("hive_server2_port", "", read_only=False, from_meta=True)
+
+    def __init__(self, **attrs):
+        attrs["Type"] = 'datasource.hive'
+        super(DS_Hive, self).__init__(**attrs)
+
 
 class DS_Database(BaseIO):
     URL = _create_property("URL", "", read_only=False, from_meta=False)
@@ -58,6 +94,10 @@ class DS_Database(BaseIO):
     meta_user = _create_property("user", "", read_only=False, from_meta=True)
     meta_password = _create_property("password", "", read_only=False, from_meta=True)
     meta_database = _create_property("database", "", read_only=False, from_meta=True)
+
+    def __init__(self, **attrs):
+        attrs["Type"] = 'datasource.db'
+        super(DS_Database, self).__init__(**attrs)
 
 
 _handler_callbacks = {}
