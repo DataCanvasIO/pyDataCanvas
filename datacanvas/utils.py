@@ -285,7 +285,11 @@ def prepare_hadoop_conf(fn, safe=False):
         pr = urlparse(fn)
         if pr.scheme in ["http", "https"]:
             with tempfile.NamedTemporaryFile(prefix="tmp_hadoop_conf_") as f:
-                urllib.urlretrieve(fn, f.name)
+                try:
+                    urllib.urlretrieve(fn, f.name)
+                except Exception as e:
+                    raise Exception("ERROR : failed to download '%s'" % fn)
+                    return None
                 return _prepare_hadoop_conf_file(f.name)
         elif pr.scheme in ["file"]:
             return _prepare_hadoop_conf_file(pr.path)

@@ -267,7 +267,7 @@ class GenericHadoopRuntime(BasicRuntime):
         return cluster_params
 
     def switch_hadoop_env(self, hadoop_type, cluster_var_name="cluster", extra_env_vars=None):
-        print "Switch to Hadoop type = '%s'" % hadoop_type
+        print "Switching to Hadoop type = '%s'" % hadoop_type
         cluster_params = self._get_cluster_params(cluster_var_name)
         self.cluster_params = cluster_params
 
