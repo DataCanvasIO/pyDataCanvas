@@ -6,7 +6,7 @@ import sys
 import json
 import types
 from collections import namedtuple
-from datacanvas.io_types import load_io_obj
+from datacanvas.io_types import load_io_obj, BaseIO
 
 
 class Input(str):
@@ -107,7 +107,10 @@ class Output(str):
     @val.setter
     def val(self, value):
         with open(self.x, "w+") as f:
-            f.write(value)
+            if isinstance(value, BaseIO):
+                f.write(json.dumps(value))
+            else:
+                f.write(value)
 
     @property
     def types(self):

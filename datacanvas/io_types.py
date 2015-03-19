@@ -44,17 +44,24 @@ class BaseIO(dict):
             if hasattr(self.__class__, attr_name) and isinstance(getattr(DS_Hive, attr_name), property):
                 setattr(self, attr_name, attrs.pop(attr_name))
 
-    def __init__(self, **attrs):
+    def __init__(self, seq=None, **attrs):
         self._init_attrs(attrs)
-        super(BaseIO, self).__init__(**attrs)
+        if seq:
+            super(BaseIO, self).__init__(seq)
+        else:
+            super(BaseIO, self).__init__(**attrs)
 
 
 class DS_File(BaseIO):
     URL = _create_property("URL", "", read_only=False, from_meta=False)
 
-    def __init__(self, **attrs):
-        attrs["Type"] = 'datasource.file'
-        super(DS_File, self).__init__(**attrs)
+    def __init__(self, seq=None, **attrs):
+        if 'Type' not in attrs:
+            attrs["Type"] = 'datasource.file'
+        if seq:
+            super(DS_File, self).__init__(seq)
+        else:
+            super(DS_File, self).__init__(**attrs)
 
 
 class DS_S3(BaseIO):
@@ -62,18 +69,26 @@ class DS_S3(BaseIO):
     aws_key = _create_property("key", "", read_only=False, from_meta=True)
     aws_security = _create_property("token", "", read_only=False, from_meta=True)
 
-    def __init__(self, **attrs):
-        attrs["Type"] = 'datasource.s3'
-        super(DS_S3, self).__init__(**attrs)
+    def __init__(self, seq=None, **attrs):
+        if 'Type' not in attrs:
+            attrs["Type"] = 'datasource.s3'
+        if seq:
+            super(DS_S3, self).__init__(seq)
+        else:
+            super(DS_S3, self).__init__(**attrs)
 
 
 class DS_HDFS(BaseIO):
     URL = _create_property("URL", "", read_only=False, from_meta=False)
     port = _create_property("port", "", read_only=False, from_meta=True)
 
-    def __init__(self, **attrs):
-        attrs["Type"] = 'datasource.hdfs'
-        super(DS_HDFS, self).__init__(**attrs)
+    def __init__(self, seq=None, **attrs):
+        if 'Type' not in attrs:
+            attrs["Type"] = 'datasource.hdfs'
+        if seq:
+            super(DS_HDFS, self).__init__(seq)
+        else:
+            super(DS_HDFS, self).__init__(**attrs)
 
 
 class DS_Hive(BaseIO):
@@ -81,9 +96,13 @@ class DS_Hive(BaseIO):
     meta_server = _create_property("hive_server2_host", "", read_only=False, from_meta=True)
     meta_port = _create_property("hive_server2_port", "", read_only=False, from_meta=True)
 
-    def __init__(self, **attrs):
-        attrs["Type"] = 'datasource.hive'
-        super(DS_Hive, self).__init__(**attrs)
+    def __init__(self, seq=None, **attrs):
+        if 'Type' not in attrs:
+            attrs["Type"] = 'datasource.hive'
+        if seq:
+            super(DS_Hive, self).__init__(seq)
+        else:
+            super(DS_Hive, self).__init__(**attrs)
 
 
 class DS_Database(BaseIO):
@@ -95,9 +114,13 @@ class DS_Database(BaseIO):
     meta_password = _create_property("password", "", read_only=False, from_meta=True)
     meta_database = _create_property("database", "", read_only=False, from_meta=True)
 
-    def __init__(self, **attrs):
-        attrs["Type"] = 'datasource.db'
-        super(DS_Database, self).__init__(**attrs)
+    def __init__(self, seq=None, **attrs):
+        if 'Type' not in attrs:
+            attrs["Type"] = 'datasource.db'
+        if seq:
+            super(DS_Database, self).__init__(seq)
+        else:
+            super(DS_Database, self).__init__(**attrs)
 
 
 _handler_callbacks = {}
@@ -118,6 +141,8 @@ def generic_types():
 
 
 register_handler("LocalFile", DS_File)
+register_handler("Http", DS_File)
+register_handler("Ftp", DS_File)
 register_handler("AWS_S3", DS_S3)
 register_handler("HDFS", DS_HDFS)
 register_handler("Hive", DS_Hive)
@@ -150,7 +175,7 @@ def from_json(json_object):
             return stypes[jo_type].handler(json_object)
         else:
             # Generic Type
-            for gt,gt_handler in gtypes:
+            for gt, gt_handler in gtypes.items():
                 if re.match(gt, jo_type):
                     return gt_handler.handler(json_object)
             else:

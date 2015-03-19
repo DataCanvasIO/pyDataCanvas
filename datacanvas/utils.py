@@ -158,9 +158,9 @@ def s3parse(s3_path):
     return pr
 
 
-def s3join(s3_path, rel_path):
+def s3join(s3_path, *rel_path):
     pr = urlparse(s3_path)
-    pr = pr._replace(path=os.path.normpath(os.path.join(pr.path, rel_path)))
+    pr = pr._replace(path=os.path.normpath(os.path.join(pr.path, *rel_path)))
     return urlunparse(pr)
 
 # TODO: Refactor to 'botocore' when it becomes mature.
@@ -289,7 +289,6 @@ def prepare_hadoop_conf(fn, safe=False):
                     urllib.urlretrieve(fn, f.name)
                 except Exception as e:
                     raise Exception("ERROR : failed to download '%s'" % fn)
-                    return None
                 return _prepare_hadoop_conf_file(f.name)
         elif pr.scheme in ["file"]:
             return _prepare_hadoop_conf_file(pr.path)

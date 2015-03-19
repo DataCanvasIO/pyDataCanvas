@@ -128,11 +128,12 @@ class HiveScriptBuilder(ScriptBuilder):
 
     def hive_output_builder(self, output_name, output_obj):
         out_type = output_obj.types[0]
+        # TODO: refactor types
         if out_type.startswith("hive.table"):
             return self.get_hive_table(output_name)
-        elif out_type.startswith("hive.hdfs"):
+        elif out_type.startswith("hdfs"):
             return self.get_hdfs_working_dir("OUTPUT_%s" % output_name)
-        elif out_type.startswith("hive.s3"):
+        elif out_type.startswith("s3"):
             return self.get_s3_working_dir("OUTPUT_%s" % output_name)
         else:
             raise ValueError("Invalid type for hive, type must start with 'hive.table' or 'hive.hdfs' or 'hive.s3'")
@@ -184,6 +185,7 @@ class PigScriptBuilder(ScriptBuilder):
 
     def pig_output_builder(self, output_name, output_obj):
         out_type = output_obj.types[0]
+        # TODO: refactor types
         if out_type.startswith("hdfs"):
             return self.get_hdfs_working_dir("OUTPUT_%s" % output_name)
         elif out_type.startswith("s3"):
@@ -248,7 +250,7 @@ class GenericHadoopRuntime(BasicRuntime):
         self.cluster_params = None
 
         param_dict = self.settings.Param._asdict()
-        if param_dict.has_key(cluster_var_name) and param_dict.get(cluster_var_name).is_cluster:
+        if (cluster_var_name in param_dict) and param_dict[cluster_var_name].is_cluster:
             cluster_type = self._get_cluster_type(cluster_var_name)
             print param_dict.get(cluster_var_name).type
             print "=================================================="
