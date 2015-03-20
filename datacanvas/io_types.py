@@ -1,4 +1,3 @@
-
 import re
 import json
 from collections import namedtuple
@@ -7,6 +6,7 @@ from collections import namedtuple
 def _create_property(field_name, docstring, read_only=False, from_meta=False):
     """Helper for creating properties to IO objects to files.
     """
+
     def getter(self):
         if from_meta:
             if 'Meta' not in self:
@@ -125,48 +125,69 @@ class DS_Database(BaseIO):
 
 _handler_callbacks = {}
 
-TypeHandler = namedtuple("TypeHandler", ["handler", "is_regex"])
+TypeHandler = namedtuple("TypeHandler", ["handler", "type_pattern", "is_regex"])
 
 
-def register_handler(type_name, handler, is_regex=False):
-    _handler_callbacks[type_name] = TypeHandler(handler=handler, is_regex=is_regex)
+def register_handler(type_name, type_pattern, handler, is_regex=False):
+    if not type_pattern:
+        type_pattern = type_name
+    _handler_callbacks[type_name] = TypeHandler(handler=handler, type_pattern=type_pattern, is_regex=is_regex)
 
 
 def specific_types():
-    return dict((k,v) for k,v in _handler_callbacks.items() if not v.is_regex)
+    return dict((k, v) for k, v in _handler_callbacks.items() if not v.is_regex)
 
 
 def generic_types():
-    return dict((k,v) for k,v in _handler_callbacks.items() if v.is_regex)
+    return dict((k, v) for k, v in _handler_callbacks.items() if v.is_regex)
 
 
-register_handler("LocalFile", DS_File)
-register_handler("Http", DS_File)
-register_handler("Ftp", DS_File)
-register_handler("AWS_S3", DS_S3)
-register_handler("HDFS", DS_HDFS)
-register_handler("Hive", DS_Hive)
-register_handler("DB", DS_Database)
+def all_types():
+    return _handler_callbacks
 
-register_handler("datasource.file", DS_File)
-register_handler("datasource.s3", DS_S3)
-register_handler("datasource.hdfs", DS_HDFS)
-register_handler("datasource.hive", DS_Hive)
-register_handler("datasource.db", DS_Database)
-register_handler("datasource", BaseIO)
 
-register_handler("s3", DS_S3)
-register_handler("s3\.\w+", DS_S3, is_regex=True)
-register_handler("hdfs", DS_HDFS)
-register_handler("hdfs\.\w+", DS_HDFS, is_regex=True)
-register_handler("hive", DS_Hive)
-register_handler("hive[\.\w+]+", DS_Hive, is_regex=True)
+def is_subtype_of(type_name, target_type):
+    gts = all_types()
+    if type_name not in gts:
+        return False
+    type_handler = gts[type_name]
+    if type_handler.is_regex:
+        return re.match(type_handler.type_pattern, target_type)
+    else:
+        return type_handler.type_pattern == target_type
+
+
+def is_type_of(type_name, target_type):
+    return is_subtype_of(type_name, target_type) or is_subtype_of(type_name + ".*", target_type)
+
+
+register_handler("LocalFile", None, DS_File)
+register_handler("Http", None, DS_File)
+register_handler("Ftp", None, DS_File)
+register_handler("AWS_S3", None, DS_S3)
+register_handler("HDFS", None, DS_HDFS)
+register_handler("Hive", None, DS_Hive)
+register_handler("DB", None, DS_Database)
+
+register_handler("datasource.file", None, DS_File)
+register_handler("datasource.s3", None, DS_S3)
+register_handler("datasource.hdfs", None, DS_HDFS)
+register_handler("datasource.hive", None, DS_Hive)
+register_handler("datasource.db", None, DS_Database)
+register_handler("datasource", None, BaseIO)
+
+register_handler("s3", None, DS_S3)
+register_handler("s3.*", "s3[\.\w+]+", DS_S3, is_regex=True)
+register_handler("hdfs", None, DS_HDFS)
+register_handler("hdfs.*", "hdfs[\.\w+]+", DS_HDFS, is_regex=True)
+register_handler("hive", None, DS_Hive)
+register_handler("hive.*", "hive[\.\w+]+", DS_Hive, is_regex=True)
 
 
 def from_json(json_object):
     if 'Type' in json_object:
         jo_type = json_object['Type']
-        
+
         stypes = specific_types()
         gtypes = generic_types()
 
@@ -175,9 +196,9 @@ def from_json(json_object):
             return stypes[jo_type].handler(json_object)
         else:
             # Generic Type
-            for gt, gt_handler in gtypes.items():
-                if re.match(gt, jo_type):
-                    return gt_handler.handler(json_object)
+            for gt_name, gt_obj in gtypes.items():
+                if re.match(gt_obj.type_pattern, jo_type):
+                    return gt_obj.handler(json_object)
             else:
                 return BaseIO(json_object)
     return json_object

@@ -9,6 +9,7 @@ import functools
 from datacanvas.clusters import EmrCluster, GenericHadoopCluster
 from datacanvas.utils import *
 from datacanvas.module import get_settings_from_file
+from datacanvas import io_types
 
 
 class BasicRuntime(object):
@@ -92,10 +93,13 @@ class EmrPigRuntime(BasicRuntime):
 
 class ScriptBuilder(object):
 
-    def __init__(self, settings, s3_working_root, hdfs_working_root):
+    def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params=None):
         self.settings = settings
         self.s3_working_root = s3_working_root
         self.hdfs_working_root = hdfs_working_root
+        if not cluster_params:
+            cluster_params = {}
+        self.cluster_params = cluster_params
 
     def get_hdfs_working_dir(self, dir_path=""):
         return s3join(self.hdfs_working_root, dir_path)
@@ -106,8 +110,8 @@ class ScriptBuilder(object):
 
 class HiveScriptBuilder(ScriptBuilder):
 
-    def __init__(self, settings, s3_working_root, hdfs_working_root):
-        super(HiveScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root)
+    def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params):
+        super(HiveScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root, cluster_params)
 
     def get_hive_namespace(self):
         ps = self.settings
@@ -136,12 +140,37 @@ class HiveScriptBuilder(ScriptBuilder):
         elif out_type.startswith("s3"):
             return self.get_s3_working_dir("OUTPUT_%s" % output_name)
         else:
-            raise ValueError("Invalid type for hive, type must start with 'hive.table' or 'hive.hdfs' or 'hive.s3'")
+            raise ValueError("Invalid type for hive")
+
+    def hive_create_output(self, output_name, output_obj):
+        cluster_params = self.cluster_params
+        print cluster_params
+
+        out_type = output_obj.types[0]
+        if io_types.is_type_of("s3", out_type):
+            aws_key = cluster_params.get("accessKey", "")
+            aws_sec = cluster_params.get("accessSecret", "")
+            return io_types.DS_S3(URL=self.get_s3_working_dir("OUTPUT_%s" % output_name),
+                                  aws_key=aws_key,
+                                  aws_security=aws_sec)
+        elif io_types.is_type_of("hdfs", out_type):
+            return io_types.DS_HDFS(URL=self.get_hdfs_working_dir("OUTPUT_%s" % output_name))
+        elif io_types.is_type_of("hive", out_type):
+            hs2_host = cluster_params.get("hive_server2_host", "")
+            hs2_port = cluster_params.get("hive_server2_port", "")
+            if hs2_host and hs2_port:
+                return io_types.DS_Hive(URL=self.get_hive_table("OUTPUT_%s" % output_name),
+                                        meta_server=hs2_host,
+                                        meta_port=hs2_port)
+            else:
+                return io_types.DS_Hive(URL=self.get_hive_table("OUTPUT_%s" % output_name))
+        else:
+            raise ValueError("Invalid type for hive")
 
     def header_builder(self, hive_ns, uploaded_files, uploaded_jars):
         # Build Output Tables
         for output_name, output_obj in self.settings.Output._asdict().items():
-            output_obj.val = self.hive_output_builder(output_name, output_obj)
+            output_obj.val = self.hive_create_output(output_name, output_obj)
 
         return "\n".join(
             itertools.chain(
@@ -180,8 +209,8 @@ class HiveScriptBuilder(ScriptBuilder):
 
 class PigScriptBuilder(ScriptBuilder):
 
-    def __init__(self, settings, s3_working_root, hdfs_working_root):
-        super(PigScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root)
+    def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params):
+        super(PigScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root, cluster_params)
 
     def pig_output_builder(self, output_name, output_obj):
         out_type = output_obj.types[0]
@@ -193,10 +222,25 @@ class PigScriptBuilder(ScriptBuilder):
         else:
             raise ValueError("Invalid type for hive, type must start with 'hive.table' or 'hive.hdfs' or 'hive.s3'")
 
+    def pig_create_output(self, output_name, output_obj):
+        cluster_params = self.cluster_params
+
+        out_type = output_obj.types[0]
+        if io_types.is_type_of("s3", out_type):
+            aws_key = cluster_params.get("accessKey", None)
+            aws_sec = cluster_params.get("accessSecret", None)
+            return io_types.DS_S3(URL=self.get_s3_working_dir("OUTPUT_%s" % output_name),
+                                  aws_key=aws_key,
+                                  aws_security=aws_sec)
+        elif io_types.is_type_of("hdfs", out_type):
+            return io_types.DS_HDFS(URL=self.get_hdfs_working_dir("OUTPUT_%s" % output_name))
+        else:
+            raise ValueError("Invalid type for hive")
+
     def header_builder(self, uploaded_jars):
         # Build Output Tables
         for output_name, output_obj in self.settings.Output._asdict().items():
-            output_obj.val = self.pig_output_builder(output_name, output_obj)
+            output_obj.val = self.pig_create_output(output_name, output_obj)
 
         return "\n".join(
             itertools.chain(
@@ -291,7 +335,6 @@ class GenericHadoopRuntime(BasicRuntime):
             self.s3_working_root = None
             self.hdfs_working_root = cluster_params["hdfs_root"]
         else:
-            # if hadoop_type in ["CDH4", "CDH5"]:
             raise Exception("Do NOT support hadoop_type '%s'" % hadoop_type)
 
         self.cluster.clean_working_dir(self.working_root)
@@ -320,26 +363,29 @@ class GenericHadoopRuntime(BasicRuntime):
     def execute_hive(self, hive_main, *args, **kwargs):
         job_name = self.get_job_name()
 
-        hb = HiveScriptBuilder(self.settings,
-                               s3_working_root=self.s3_working_root,
-                               hdfs_working_root=self.hdfs_working_root)
+        hb = HiveScriptBuilder(self.settings, s3_working_root=self.s3_working_root,
+                               hdfs_working_root=self.hdfs_working_root,
+                               cluster_params=self.cluster_params)
         generated_hql = hb.generate_script(hive_main, [], [])
         remote_hive_script = self.cluster.prepare_working_file(self.working_root, generated_hql)
-        return self.cluster.execute_hive(job_name=job_name,
-                                         hive_script=remote_hive_script,
-                                         *args, **kwargs)
+        ret = self.cluster.execute_hive(job_name=job_name,
+                                        hive_script=remote_hive_script,
+                                        *args, **kwargs)
+        return ret
+
 
     def execute_pig(self, pig_main, *args, **kwargs):
         job_name = self.get_job_name()
 
-        pb = PigScriptBuilder(self.settings,
-                              s3_working_root=self.s3_working_root,
-                              hdfs_working_root=self.hdfs_working_root)
+        pb = PigScriptBuilder(self.settings, s3_working_root=self.s3_working_root,
+                              hdfs_working_root=self.hdfs_working_root,
+                              cluster_params=self.cluster_params)
         generated_pig = pb.generate_script(pig_main, [])
         remote_pig_script = self.cluster.prepare_working_file(self.working_root, generated_pig)
-        return self.cluster.execute_pig(job_name=job_name,
-                                        pig_script=remote_pig_script,
-                                        *args, **kwargs)
+        ret = self.cluster.execute_pig(job_name=job_name,
+                                       pig_script=remote_pig_script,
+                                       *args, **kwargs)
+        return ret
 
 
 ##############
