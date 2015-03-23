@@ -46,7 +46,7 @@ def s3_upload(bucket, local_filename, remote_filename):
 
     # max size in bytes before uploading in parts.
     # between 1 and 5 GB recommended
-    MAX_SIZE = 40 * 1000 * 1000
+    MAX_SIZE = 400 * 1000 * 1000
     # size of parts when uploading in parts
     PART_SIZE = 6 * 1000 * 1000
 
@@ -68,6 +68,7 @@ def s3_upload(bucket, local_filename, remote_filename):
             print "uploading part %i" % fp_num
             mp.upload_part_from_file(fp, fp_num, cb=percent_cb, num_cb=10, size=PART_SIZE)
         mp.complete_upload()
+        print("Done")
         print("")
     else:
         print("Single-part upload...")
