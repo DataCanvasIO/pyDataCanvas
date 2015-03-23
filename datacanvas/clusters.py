@@ -332,7 +332,7 @@ class EmrCluster(BaseCluster):
                 self.dump_logs(step_id, log_files=log_files, retry_count=retry_count,
                                retry_interval=retry_interval,
                                extra_wait_count=extra_wait_count)
-            raise Exception("EmrCluster: failed to execute emr_hive steps")
+            raise Exception("EmrCluster: failed to execute steps")
 
 
 class GenericHadoopCluster(BaseCluster):
