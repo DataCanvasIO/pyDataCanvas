@@ -315,10 +315,16 @@ def preprocess_cluster_envs(base_envs, hadoop_type, cluster_def):
         if isinstance(env_val, dict):
             if 'prepend_path' in env_val:
                 ppath = env_val['prepend_path']
-                return ppath + os.pathsep + base_envs.get(env_name)
+                if env_name in base_envs:
+                    return ppath + os.pathsep + base_envs.get(env_name)
+                else:
+                    return ppath
             elif 'append_path' in env_val:
                 ppath = env_val['append_path']
-                return base_envs.get(env_name) + os.pathsep + ppath
+                if env_name in base_envs:
+                    return base_envs.get(env_name) + os.pathsep + ppath
+                else:
+                    return ppath
             else:
                 # TODO:
                 pass
