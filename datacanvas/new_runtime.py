@@ -172,14 +172,21 @@ class HiveScriptBuilder(ScriptBuilder):
         for output_name, output_obj in self.settings.Output._asdict().items():
             output_obj.val = self.hive_create_output(output_name, output_obj)
 
+        def _get_io_val(obj):
+            if 'URL' in obj:
+                return obj['URL']
+            else:
+                # TODO:
+                raise Exception("TODO: ERROR")
+
         return "\n".join(
             itertools.chain(
                 ["ADD FILE %s;" % f for f in uploaded_files],
                 ["ADD JAR %s;" % f for f in uploaded_jars],
                 ["set hivevar:MYNS = %s;" % hive_ns],
                 ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in self.settings.Param._asdict().items() if v.is_primitive],
-                ["set hivevar:INPUT_%s = %s;" % (k, v.val) for k, v in self.settings.Input._asdict().items()],
-                ["set hivevar:OUTPUT_%s = %s;" % (k, v.val) for k, v in self.settings.Output._asdict().items()]))
+                ["set hivevar:INPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Input._asdict().items()],
+                ["set hivevar:OUTPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Output._asdict().items()]))
 
     def generate_script(self, hive_script, uploaded_files, uploaded_jars):
         hive_ns = self.get_hive_namespace()
