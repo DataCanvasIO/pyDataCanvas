@@ -110,8 +110,9 @@ class ScriptBuilder(object):
 
 class HiveScriptBuilder(ScriptBuilder):
 
-    def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params):
+    def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params, ignore_output_type_error=True):
         super(HiveScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root, cluster_params)
+        self.ignore_output_type_error = ignore_output_type_error
 
     def get_hive_namespace(self):
         ps = self.settings
@@ -144,7 +145,6 @@ class HiveScriptBuilder(ScriptBuilder):
 
     def hive_create_output(self, output_name, output_obj):
         cluster_params = self.cluster_params
-        print cluster_params
 
         out_type = output_obj.types[0]
         if io_types.is_type_of("s3", out_type):
@@ -165,7 +165,10 @@ class HiveScriptBuilder(ScriptBuilder):
             else:
                 return io_types.DS_Hive(URL=self.get_hive_table("OUTPUT_%s" % output_name))
         else:
-            raise ValueError("Invalid type for hive")
+            if self.ignore_output_type_error:
+                return None
+            else:
+                raise ValueError("Invalid type for hive")
 
     def header_builder(self, hive_ns, uploaded_files, uploaded_jars):
         # Build Output Tables
@@ -177,7 +180,10 @@ class HiveScriptBuilder(ScriptBuilder):
                 return obj['URL']
             else:
                 # TODO:
-                raise Exception("TODO: ERROR")
+                if self.ignore_output_type_error:
+                    return ""
+                else:
+                    raise Exception("TODO: ERROR")
 
         return "\n".join(
             itertools.chain(
@@ -186,7 +192,7 @@ class HiveScriptBuilder(ScriptBuilder):
                 ["set hivevar:MYNS = %s;" % hive_ns],
                 ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in self.settings.Param._asdict().items() if v.is_primitive],
                 ["set hivevar:INPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Input._asdict().items()],
-                ["set hivevar:OUTPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Output._asdict().items()]))
+                ["set hivevar:OUTPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Output._asdict().items() if v.val]))
 
     def generate_script(self, hive_script, uploaded_files, uploaded_jars):
         hive_ns = self.get_hive_namespace()
@@ -379,7 +385,6 @@ class GenericHadoopRuntime(BasicRuntime):
                                         hive_script=remote_hive_script,
                                         *args, **kwargs)
         return ret
-
 
     def execute_pig(self, pig_main, *args, **kwargs):
         job_name = self.get_job_name()

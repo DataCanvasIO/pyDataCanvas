@@ -11,7 +11,7 @@ from boto.emr.step import HiveStep, JarStep, PigStep
 from itertools import izip
 from datacanvas.utils import cached_property, url_path_join, s3join, \
     s3parse, s3_upload, pprint_aws_obj, prepare_hadoop_conf, \
-    preprocess_cluster_envs
+    preprocess_cluster_envs, percent_cb
 from urlparse import urlparse
 import abc
 
@@ -139,6 +139,19 @@ class EmrCluster(BaseCluster):
         for key in bucket.list(prefix=prefix_path):
             key.delete()
         return True
+
+    def s3_sync(self, src_dir, dest_dir):
+        pr = s3parse(src_dir)
+        bucket = self.s3_conn.get_bucket(pr.netloc)
+        for f in self.s3_list_files(src_dir):
+            src_fn = s3join("s3://"+pr.netloc, f)
+            src_pr = s3parse(src_fn)
+            k = bucket.get_key(src_pr.path)
+
+            dest_fn = os.path.join(dest_dir, os.path.basename(src_pr.path))
+            k.get_contents_to_filename(dest_fn, cb=percent_cb, num_cb=1000)
+
+        return dest_dir
 
     def dump_logs(self, step_id, log_files=None, retry_count=1, retry_interval=60, extra_wait_count=5):
         if not log_files:

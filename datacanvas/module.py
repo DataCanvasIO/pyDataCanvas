@@ -107,6 +107,9 @@ class Output(str):
     @val.setter
     def val(self, value):
         with open(self.x, "w+") as f:
+            if "any" in self._types or any([re.match(r"raw.*", t) for t in self._types]):
+                return
+
             if isinstance(value, BaseIO):
                 f.write(json.dumps(value))
             else:
