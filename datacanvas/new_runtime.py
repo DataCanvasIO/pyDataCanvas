@@ -170,7 +170,10 @@ class HiveScriptBuilder(ScriptBuilder):
             else:
                 raise ValueError("Invalid type for hive")
 
-    def header_builder(self, hive_ns, uploaded_files, uploaded_jars):
+    def header_builder(self, hive_ns, uploaded_files, uploaded_jars, extra_vars=None):
+        if not extra_vars:
+            extra_vars = {}
+
         # Build Output Tables
         for output_name, output_obj in self.settings.Output._asdict().items():
             output_obj.val = self.hive_create_output(output_name, output_obj)
@@ -192,13 +195,14 @@ class HiveScriptBuilder(ScriptBuilder):
                 ["set hivevar:MYNS = %s;" % hive_ns],
                 ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in self.settings.Param._asdict().items() if v.is_primitive],
                 ["set hivevar:INPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Input._asdict().items()],
-                ["set hivevar:OUTPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Output._asdict().items() if v.val]))
+                ["set hivevar:OUTPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Output._asdict().items() if v.val],
+                ["set hivevar:%s = %s;" % (k, v) for k, v in extra_vars.items()]))
 
-    def generate_script(self, hive_script, uploaded_files, uploaded_jars):
+    def generate_script(self, hive_script, uploaded_files, uploaded_jars, extra_vars=None):
         hive_ns = self.get_hive_namespace()
 
         # Build Input, Output and Param
-        header = self.header_builder(hive_ns, uploaded_files, uploaded_jars)
+        header = self.header_builder(hive_ns, uploaded_files, uploaded_jars, extra_vars)
 
         import tempfile
         tmp_file = tempfile.NamedTemporaryFile(prefix="hive_generated_", suffix=".hql", delete=False)
@@ -250,7 +254,10 @@ class PigScriptBuilder(ScriptBuilder):
         else:
             raise ValueError("Invalid type for hive")
 
-    def header_builder(self, uploaded_jars):
+    def header_builder(self, uploaded_jars, extra_vars=None):
+        if not extra_vars:
+            extra_vars = {}
+
         # Build Output Tables
         for output_name, output_obj in self.settings.Output._asdict().items():
             output_obj.val = self.pig_create_output(output_name, output_obj)
@@ -264,14 +271,16 @@ class PigScriptBuilder(ScriptBuilder):
                  for k, v in self.settings.Input._asdict().items()],
                 ["%%declare OUTPUT_%s '%s'" % (k, v.val)
                  for k, v in self.settings.Output._asdict().items()],
+                ["%%declare %s '%s'" % (k, v.val)
+                 for k, v in extra_vars.items()],
                 ["REGISTER '%s';" % f
                  for f in uploaded_jars]
             ))
 
-    def generate_script(self, pig_script, uploaded_jars):
+    def generate_script(self, pig_script, uploaded_jars, extra_vars=None):
 
         # Build Input, Output and Param
-        header = self.header_builder(uploaded_jars)
+        header = self.header_builder(uploaded_jars, extra_vars)
 
         import tempfile
         tmp_file = tempfile.NamedTemporaryFile(prefix="pig_generated_", suffix=".pig", delete=False)
@@ -373,26 +382,26 @@ class GenericHadoopRuntime(BasicRuntime):
                                         jar_args=jar_args, main_class=main_class,
                                         *args, **kwargs)
 
-    def execute_hive(self, hive_main, *args, **kwargs):
+    def execute_hive_filename(self, hive_main_filename, extra_vars=None, *args, **kwargs):
         job_name = self.get_job_name()
 
         hb = HiveScriptBuilder(self.settings, s3_working_root=self.s3_working_root,
                                hdfs_working_root=self.hdfs_working_root,
                                cluster_params=self.cluster_params)
-        generated_hql = hb.generate_script(hive_main, [], [])
+        generated_hql = hb.generate_script(hive_main_filename, [], [], extra_vars=extra_vars)
         remote_hive_script = self.cluster.prepare_working_file(self.working_root, generated_hql)
         ret = self.cluster.execute_hive(job_name=job_name,
                                         hive_script=remote_hive_script,
                                         *args, **kwargs)
         return ret
 
-    def execute_pig(self, pig_main, *args, **kwargs):
+    def execute_pig_filename(self, pig_main_filename, extra_vars=None, *args, **kwargs):
         job_name = self.get_job_name()
 
         pb = PigScriptBuilder(self.settings, s3_working_root=self.s3_working_root,
                               hdfs_working_root=self.hdfs_working_root,
                               cluster_params=self.cluster_params)
-        generated_pig = pb.generate_script(pig_main, [])
+        generated_pig = pb.generate_script(pig_main_filename, [], extra_vars=extra_vars)
         remote_pig_script = self.cluster.prepare_working_file(self.working_root, generated_pig)
         ret = self.cluster.execute_pig(job_name=job_name,
                                        pig_script=remote_pig_script,

@@ -148,8 +148,10 @@ class EmrCluster(BaseCluster):
             src_pr = s3parse(src_fn)
             k = bucket.get_key(src_pr.path)
 
+            print "Downloading '%s'" % src_fn
             dest_fn = os.path.join(dest_dir, os.path.basename(src_pr.path))
             k.get_contents_to_filename(dest_fn, cb=percent_cb, num_cb=1000)
+            print ""
 
         return dest_dir
 
