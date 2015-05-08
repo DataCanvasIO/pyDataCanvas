@@ -7,10 +7,8 @@ from setuptools import setup
 ROOT_DIR = os.path.dirname(__file__)
 SOURCE_DIR = os.path.join(ROOT_DIR)
 
-requirements = [
-    "boto >= 2.34.0",
-    "pyparsing >= 2.0.3"
-]
+with open('./requirements.txt') as reqs_txt:
+    requirements = [line for line in reqs_txt]
 
 exec(open('datacanvas/version.py').read())
 
