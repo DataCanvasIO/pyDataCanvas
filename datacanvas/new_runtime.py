@@ -6,7 +6,7 @@ A series of Runtime.
 
 import itertools
 import functools
-from datacanvas.clusters import EmrCluster, GenericHadoopCluster
+from datacanvas.clusters import EmrCluster, QuboleCluster, GenericHadoopCluster
 from datacanvas.utils import *
 from datacanvas.module import get_settings_from_file
 from datacanvas import io_types
@@ -356,6 +356,15 @@ class GenericHadoopRuntime(BasicRuntime):
             self.working_root = self.cluster.get_working_root(cluster_params, self.global_params)
             self.s3_working_root = None
             self.hdfs_working_root = cluster_params["hdfs_root"]
+        elif hadoop_type in ["QUBOLE"]:
+            self.hadoop_type = hadoop_type
+            self.cluster = QuboleCluster(qubole_api_token=cluster_params["qubole_api_token"],
+                                         qubole_cluster_name=cluster_params["qubole_cluster_name"],
+                                         qubole_tags=cluster_params["qubole_tags"])
+            self.cluster.prepare(hadoop_type, **cluster_params)
+            self.working_root = self.cluster.get_working_root(cluster_params, self.global_params)
+            self.s3_working_root = self.working_root
+            self.hdfs_working_root = "/"
         else:
             raise Exception("Do NOT support hadoop_type '%s'" % hadoop_type)
 

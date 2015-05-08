@@ -1,2 +1,3 @@
 boto >= 2.34.0
 pyparsing >= 2.0.3
+qds_sdk==1.5.1
