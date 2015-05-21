@@ -153,9 +153,9 @@ class HiveScriptBuilder(ScriptBuilder):
             return io_types.DS_S3(URL=self.get_s3_working_dir("OUTPUT_%s" % output_name),
                                   aws_key=aws_key,
                                   aws_security=aws_sec)
-        elif io_types.is_type_of("hdfs", out_type):
+        elif io_types.is_type_of("hdfs", out_type) or io_types.is_type_of("datasource.hdfs", out_type):
             return io_types.DS_HDFS(URL=self.get_hdfs_working_dir("OUTPUT_%s" % output_name))
-        elif io_types.is_type_of("hive", out_type):
+        elif io_types.is_type_of("hive", out_type) or io_types.is_type_of("datasource.hive", out_type):
             hs2_host = cluster_params.get("hive_server2_host", "")
             hs2_port = cluster_params.get("hive_server2_port", "")
             if hs2_host and hs2_port:
@@ -164,6 +164,9 @@ class HiveScriptBuilder(ScriptBuilder):
                                         meta_port=hs2_port)
             else:
                 return io_types.DS_Hive(URL=self.get_hive_table("OUTPUT_%s" % output_name))
+        elif io_types.is_type_of("datasource", out_type):
+            # TODO: default as a 'hive' table?
+            return io_types.DS_Hive(URL=self.get_hive_table("OUTPUT_%s" % output_name))
         else:
             if self.ignore_output_type_error:
                 return None

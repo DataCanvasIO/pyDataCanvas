@@ -97,9 +97,9 @@ class EmrBaseCluster(object):
 
     @cached_property
     def emr_conn(self):
-        return boto.emr.connect_to_region(self.aws_region,
-                                          aws_access_key_id=self.aws_key,
-                                          aws_secret_access_key=self.aws_secret)
+        return boto.connect_emr(region=self.aws_region,
+                                aws_access_key_id=self.aws_key,
+                                aws_secret_access_key=self.aws_secret)
 
     @cached_property
     def s3_conn(self):
