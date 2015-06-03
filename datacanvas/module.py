@@ -7,6 +7,7 @@ import json
 import types
 from collections import namedtuple
 from datacanvas.io_types import load_io_obj, BaseIO
+from datacanvas.utils import mask_key
 
 
 class Input(str):
@@ -130,10 +131,33 @@ class Param(str):
         self._typeinfo = typeinfo
 
     def __repr__(self):
-        return str(self._x)
+        if self.is_cluster:
+            return self.show()
+        else:
+            return str(self._x)
 
     def __str__(self):
-        return str(self._x)
+        if self.is_cluster:
+            return self.show()
+        else:
+            return str(self._x)
+
+    def show(self, mask_keys=True):
+        def get_safe_cluster_param(cp):
+            security_mask_names = ['accessKey', 'accessSecret', 'qubole_api_token', 'subscriptionId']
+            if mask_keys and cp['Name'] in security_mask_names and 'Val' in cp:
+                cp['Val'] = mask_key(cp['Val'])
+                return cp
+            return cp
+
+        o = self.val
+        if isinstance(o, dict):
+            if self.is_cluster:
+                cluster_params = o['Parameters']
+                o['Parameters'] = [get_safe_cluster_param(cp) for cp in cluster_params]
+                return json.dumps(o)
+        else:
+            return str(self._x)
 
     @property
     def type(self):

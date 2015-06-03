@@ -349,3 +349,6 @@ def preprocess_cluster_envs(base_envs, hadoop_type, cluster_def):
             # print "%s=%s" % (ek, ev_new)
             base_envs[ek] = ev_new
     return base_envs
+
+def mask_key(s, show=5):
+    return s[:show] + '*' * (len(s) - show*2) + s[-show:]
