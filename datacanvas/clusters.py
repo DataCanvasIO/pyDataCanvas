@@ -506,7 +506,7 @@ class GenericHadoopCluster(BaseCluster):
         self.hs2_host = cluster_kws.get("hive_server2_host", None)
         self.hs2_port = cluster_kws.get("hive_server2_port", None)
         self.hadoop_conf_dir = self._get_default_hadoop_conf_dir(**cluster_kws)
-        self.cluster_env_vars = {}
+        self.env_vars = {}
 
     def _get_default_hadoop_conf_dir(self, **cluster_kws):
         return cluster_kws.get("default_hadoop_conf_dir", "/etc/hadoop/conf/")
@@ -526,11 +526,11 @@ class GenericHadoopCluster(BaseCluster):
 
         env = os.environ.copy()
         cluster_def = cluster_kws.get("cluster_def_path", "/opt/cdh/env.json")
-        self.cluster_env_vars = \
+        self.env_vars = \
             preprocess_cluster_envs(base_envs=env,
                                     hadoop_type=hadoop_type,
                                     cluster_def=cluster_def)
-        self.cluster_env_vars["HADOOP_CONF_DIR"] = self.hadoop_conf_dir
+        self.env_vars["HADOOP_CONF_DIR"] = self.hadoop_conf_dir
 
     def get_working_root(self, cluster_params, global_params):
         remote_path = "{hdfs_root}/zetjob/{username}/job{job_id}/blk{blk_id}/".format(
@@ -545,7 +545,7 @@ class GenericHadoopCluster(BaseCluster):
         if verbose:
             print("Execute External Command : '%s'" % args)
         env = os.environ.copy()
-        env.update(self.cluster_env_vars)
+        env.update(self.env_vars)
         if extra_env:
             env.update(extra_env)
 
