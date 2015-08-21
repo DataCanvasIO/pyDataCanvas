@@ -6,10 +6,11 @@ A series of Runtime.
 
 import itertools
 import functools
-from datacanvas.clusters import EmrCluster, QuboleCluster, GenericHadoopCluster
+from datacanvas.clusters import EmrCluster, QuboleCluster, EhcCluster, GenericHadoopCluster
 from datacanvas.utils import *
 from datacanvas.module import get_settings_from_file
 from datacanvas import io_types
+from datacanvas import version as datacanvas_version
 
 
 class BasicRuntime(object):
@@ -339,6 +340,7 @@ class GenericHadoopRuntime(BasicRuntime):
 
     def switch_hadoop_env(self, hadoop_type, cluster_var_name="cluster", extra_env_vars=None):
         print "Switching to Hadoop type = '%s'" % hadoop_type
+        print "pyDataCanvas version : '%s'" % datacanvas_version
         cluster_params = self._get_cluster_params(cluster_var_name)
         self.cluster_params = cluster_params
 
@@ -364,6 +366,14 @@ class GenericHadoopRuntime(BasicRuntime):
             self.cluster = QuboleCluster(qubole_api_token=cluster_params["qubole_api_token"],
                                          qubole_cluster_name=cluster_params["qubole_cluster_name"],
                                          qubole_tags=cluster_params["qubole_tags"])
+            self.cluster.prepare(hadoop_type, **cluster_params)
+            self.working_root = self.cluster.get_working_root(cluster_params, self.global_params)
+            self.s3_working_root = self.working_root
+            self.hdfs_working_root = "/"
+        elif hadoop_type in ["EHC"]:
+            self.hadoop_type = hadoop_type
+            self.cluster = EhcCluster(ehc_token=cluster_params["ehc_token"],
+                                      ehc_id=cluster_params["ehc_id"])
             self.cluster.prepare(hadoop_type, **cluster_params)
             self.working_root = self.cluster.get_working_root(cluster_params, self.global_params)
             self.s3_working_root = self.working_root

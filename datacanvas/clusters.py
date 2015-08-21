@@ -17,6 +17,7 @@ import abc
 import qds_sdk.qubole
 import qds_sdk.commands
 import qds_sdk.cluster
+from datacanvas.ehc_client import EhcClient
 
 
 class BaseCluster(object):
@@ -490,11 +491,90 @@ class QuboleMixin(BaseCluster):
         return c.attributes['cluster']
 
 
+class EhcMixin(BaseCluster):
+
+    def prepare(self, hadoop_type, **cluster_kws):
+
+        if hadoop_type not in ["EHC"]:
+            raise Exception("EhcMixin :: Can NOT prepare '%s'" % hadoop_type)
+
+        self.ehc_client = self.create_ehc_client()
+        user_info = self.ehc_client.get_user()
+        cluster_ec2_settings = user_info['rawdata']
+        self.aws_key = cluster_ec2_settings['s3AccessKeyId']
+        self.aws_secret = cluster_ec2_settings['s3SecretAccessKey']
+
+    def create_ehc_client(self):
+        return EhcClient(ehc_id=self._kwargs['ehc_id'],
+                         ehc_token=self._kwargs['ehc_token'])
+
+    def get_working_root(self, cluster_params, global_params):
+        remote_path = "s3n://{working_bucket}/zetjob/{username}/job{job_id}/blk{blk_id}/".format(
+            working_bucket=cluster_params["S3_BUCKET"],
+            username=global_params["userName"],
+            job_id=global_params["jobId"],
+            blk_id=global_params["blockId"]
+        )
+        return remote_path
+
+    def upload_working_file(self, working_root, file_path):
+        uploaded_files = self.upload_working_dir(working_root, file_path)
+        return uploaded_files[0] if uploaded_files else None
+
+    def upload_working_dir(self, working_root, local_path):
+        if urlparse(local_path).scheme in ["s3", "s3n"]:
+            return [local_path]
+        remote_path = working_root
+        return self.s3_upload(local_path, remote_path, recursive=True)
+
+    def clean_working_dir(self, dir_path):
+        self.s3_delete_file(dir_path)
+
+    def prepare_working_file(self, working_root, file_path):
+        return self.upload_working_file(working_root, file_path)
+
+    def execute_jar(self, job_name, jar_path, jar_args, main_class, *args, **kwargs):
+        pass
+
+    def execute_stream_jar(self, job_name, jar_file, jar_args, *args, **kwargs):
+        pass
+
+    def execute_hive(self, job_name, hive_script, *args, **kwargs):
+        pass
+
+    def execute_pig(self, job_name, pig_script, *args, **kwargs):
+        pass
+
+    def hadoop_cmd(self, args, shell=False, verbose=True, extra_env=None):
+        if verbose:
+            print("Execute External Command : '%s'" % args)
+
+        print " ".join(args)
+        r = self.ehc_client.create_shell_command(" ".join(args))
+        cmd_id = r["command_setting"][0]["id"]
+        job_status = self.ehc_client.wait_command(cmd_id)
+        if job_status != "succeeded":
+            r = self.ehc_client.get_command_results(cmd_id)
+            if verbose:
+                print "--------------- EHC Logs ---------------"
+                print r['results']
+                print "----------------------------------------"
+        ret = 0 if job_status == "succeeded" else -1
+
+        if verbose:
+            print("Exit with exit code = %d" % ret)
+        return ret
+
+
 class EmrCluster(EmrBaseCluster, EmrMixin):
     pass
 
 
 class QuboleCluster(EmrBaseCluster, QuboleMixin):
+    pass
+
+
+class EhcCluster(EmrBaseCluster, EhcMixin):
     pass
 
 
