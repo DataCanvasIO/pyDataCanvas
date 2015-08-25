@@ -58,37 +58,58 @@ class EhcClient(object):
         req_handler = "/api/ehc/command/submit"
         r = self._post_command(req_handler, "shell", inline=cmd)
         if r.status_code != 200:
-            raise ServiceError("Failed to request '%s'" % req_handler)
+            raise ServiceError("ServiceError", "Failed to request '%s'" % req_handler)
         return r.json()
 
-    def create_hadoop_jar_command(self):
-        pass
+    def create_hadoop_jar_command(self, jar_path, jar_args, main_class):
+        req_handler = "/api/ehc/command/submit"
 
-    def create_hive_command(self, query):
-        pass
+        kwargs = {
+            "jar": jar_path,
+            "class": main_class,
+            "arg": jar_args
+        }
+        r = self._post_command(req_handler, "jar", **kwargs)
+
+        if r.status_code != 200:
+            print r.request.url
+            print r.request.body
+            print r.content
+            raise ServiceError("ServiceError", "Failed to request '%s'" % req_handler)
+        return r.json()
+
+    def create_hive_command(self, hql_script_path):
+        req_handler = "/api/ehc/command/submit"
+        r = self._post_command(req_handler, "hive", file=hql_script_path)
+        if r.status_code != 200:
+            print r.request.url
+            print r.request.body
+            print r.content
+            raise ServiceError("ServiceError", "Failed to request '%s'" % req_handler)
+        return r.json()
 
     def get_command_status(self, cmd_id):
         r = self._get_command(query_type="status", cmd_id=cmd_id)
         if r.status_code != 200:
-            raise ServiceError("Failed to get command status")
+            raise ServiceError("ServiceError", "Failed to get command status")
         return r.json()
 
     def get_command_results(self, cmd_id):
         r = self._get_command(query_type="results", cmd_id=cmd_id)
         if r.status_code != 200:
-            raise ServiceError("Failed to get command results")
+            raise ServiceError("ServiceError", "Failed to get command results")
         return r.json()
 
     def get_user(self):
         r = self._get_user()
         if r.status_code != 200:
-            raise ServiceError("Failed to get user.")
+            raise ServiceError("ServiceError", "Failed to get user.")
         return r.json()
 
     def wait_command(self, cmd_id, interval=1, verbose=True):
         while True:
             r = self.get_command_status(cmd_id)
-            job_status = r['status']
+            job_status = r['status'].lower()
             if verbose:
                 print "EHC.Command(ehc_id = '%s', cmd_id = '%s') Status is '%s'" % (self.ehc_id, cmd_id, job_status)
             if job_status in ["running", "prep"]:

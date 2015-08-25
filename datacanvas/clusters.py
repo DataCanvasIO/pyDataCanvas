@@ -534,13 +534,37 @@ class EhcMixin(BaseCluster):
         return self.upload_working_file(working_root, file_path)
 
     def execute_jar(self, job_name, jar_path, jar_args, main_class, *args, **kwargs):
-        pass
+        r = self.ehc_client.create_hadoop_jar_command(jar_path=jar_path,
+                                                      main_class=main_class,
+                                                      jar_args=jar_args)
+        cmd_id = r["command_setting"][0]["id"]
+        job_status = self.ehc_client.wait_command(cmd_id)
+        if job_status != "succeeded":
+            r = self.ehc_client.get_command_results(cmd_id)
+
+            print "--------------- EHC Logs ---------------"
+            print r['results']
+            print "----------------------------------------"
+        ret = 0 if job_status == "succeeded" else -1
+
+        return ret
 
     def execute_stream_jar(self, job_name, jar_file, jar_args, *args, **kwargs):
         pass
 
     def execute_hive(self, job_name, hive_script, *args, **kwargs):
-        pass
+        r = self.ehc_client.create_hive_command(hive_script)
+        cmd_id = r["command_setting"][0]["id"]
+        job_status = self.ehc_client.wait_command(cmd_id)
+        if job_status != "succeeded":
+            r = self.ehc_client.get_command_results(cmd_id)
+
+            print "--------------- EHC Logs ---------------"
+            print r['results']
+            print "----------------------------------------"
+        ret = 0 if job_status == "succeeded" else -1
+
+        return ret
 
     def execute_pig(self, job_name, pig_script, *args, **kwargs):
         pass
@@ -549,7 +573,6 @@ class EhcMixin(BaseCluster):
         if verbose:
             print("Execute External Command : '%s'" % args)
 
-        print " ".join(args)
         r = self.ehc_client.create_shell_command(" ".join(args))
         cmd_id = r["command_setting"][0]["id"]
         job_status = self.ehc_client.wait_command(cmd_id)
