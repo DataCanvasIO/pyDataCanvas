@@ -369,11 +369,20 @@ class QuboleMixin(BaseCluster):
         if hadoop_type not in ["QUBOLE"]:
             raise Exception("QuboleMixin :: Can NOT prepare '%s'" % hadoop_type)
 
+        # Get settings from qubole
         cluster = self.qubole_describe_cluster()
         cluster_ec2_settings = cluster['ec2_settings']
         self.aws_region = cluster_ec2_settings['aws_region']
         self.aws_key = cluster_ec2_settings['compute_access_key']
         self.aws_secret = cluster_ec2_settings['compute_secret_key']
+
+        # Overwrite ec2 settings
+        if 'region' in cluster_kws and cluster_kws["region"]:
+            self.aws_region = cluster_kws["region"]
+        if 'accessKey' in cluster_kws and cluster_kws["accessKey"]:
+            self.aws_key = cluster_kws["accessKey"]
+        if 'accessSecret' in cluster_kws and cluster_kws["accessSecret"]:
+            self.aws_secret = cluster_kws["accessSecret"]
 
     def get_working_root(self, cluster_params, global_params):
         remote_path = "s3n://{working_bucket}/zetjob/{username}/job{job_id}/blk{blk_id}/".format(
@@ -683,6 +692,8 @@ class GenericHadoopCluster(BaseCluster):
 
     def execute_jar(self, job_name, jar_path, jar_args, main_class, *args, **kwargs):
         this_command = ["hadoop", "jar", jar_path]
+        if main_class:
+            this_command.append(main_class)
         this_command.extend(jar_args)
         return self.hadoop_cmd(this_command)
 
