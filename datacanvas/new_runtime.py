@@ -3,14 +3,19 @@
 """
 A series of Runtime.
 """
-
-import itertools
+import threading
+from ftplib import FTP
 import functools
-from datacanvas.clusters import EmrCluster, QuboleCluster, EhcCluster, GenericHadoopCluster
-from datacanvas.utils import *
-from datacanvas.module import get_settings_from_file
+import itertools
+import hashlib
+
+import time
+
 from datacanvas import io_types
 from datacanvas import version as datacanvas_version
+from datacanvas.clusters import EmrCluster, QuboleCluster, EhcCluster, GenericHadoopCluster
+from datacanvas.module import get_settings_from_file
+from datacanvas.utils import *
 
 
 class BasicRuntime(object):
@@ -38,6 +43,101 @@ def HadoopRuntime(*args, **kwargs):
     from warnings import warn
     warn("Use 'GenericHadoopRuntime' class! 'HadoopRuntime' is deprecated.")
     return GenericHadoopRuntime(*args, **kwargs)
+
+
+class SparkRunTime():
+    @staticmethod
+    def upload2Hdfs(setting):
+        params = setting[1];
+        fileName = params.__getattribute__("SparkJar");
+        _moudlename = setting.__getattribute__("Name");
+        _hdfsUrl = params.__getattribute__("hdfsUrl")
+        _ftpuserPW = params.__getattribute__("ftpuserPW")
+        fp = open(fileName, 'rb')
+        content = fp.read()
+        fp.close()
+        m = hashlib.md5(content)
+        md5fileName = m.hexdigest()  # md5
+        ftp=FTP()
+        ftp.set_debuglevel(0)
+        ftp.connect(unicode(_hdfsUrl).split(u':')[0].__str__(),unicode(_hdfsUrl).split(u':')[1].__str__())
+        ftp.login(unicode(_ftpuserPW).split(u':')[0].__str__(),unicode(_ftpuserPW).split(u':')[1].__str__())
+        try:
+            ftp.cwd(_moudlename)
+        except:
+            ftp.mkd(_moudlename)
+        try:
+            ftp.size(md5fileName)
+            print "file has been uploaded,pass it"
+        except:
+            bufsize = 1024                           #set buffer
+            file_handler = open(fileName,'rb')      #read binary
+            ftp.storbinary('STOR %s' % os.path.basename(md5fileName),file_handler,bufsize)    #upload file
+            ftp.set_debuglevel(1)
+            file_handler.close()
+        finally:
+            ftp.quit()
+        print(_hdfsUrl+'==> upload')
+        return md5fileName
+
+
+    @staticmethod
+    def notifyParam(setting,fileName):
+        params = setting[1];
+        _SparkJar = fileName
+        _MainClass = params.__getattribute__("MainClass")
+        _serverURL = params.__getattribute__("serverURL")
+        _jvmParam = setting[1].__getattribute__("jvm")
+        _moudleName = setting.__getattribute__("Name")
+        _username = unicode(params.__getattribute__("ftpuserPW")).split(u':')[0].__str__()
+
+        paramjson = {}
+        paramjson["userName"] = _username
+        paramjson["type"] = "spark"
+        _hdfsurl = '/user/datacanvas/%s/%s/%s' % (_username,_moudleName,_SparkJar)
+        paramjson["data"] = {}
+        paramjson["data"]["jar"] = _hdfsurl
+        paramjson["data"]["class"] = _MainClass
+        paramjson["data"]["args"] = str(_jvmParam).split(",")
+
+        url = 'http://%s/aisle/spark' % _serverURL
+        payload = json.dumps(paramjson)
+        print payload
+        response = requests.request("POST", url, data=payload, headers=headers)
+        print("notify server: %s" %url)
+        if(response.status_code == 200):
+            res = json.loads(response.text)
+            return res["result"]["applicationId"]
+        print("server response: %s" %(response.text))
+        return None
+
+    # 任务完成且成功返回1，完成但失败返回0，未完成返回-1
+    @staticmethod
+    def getStatus(params,appid):
+        _serverURL = params.__getattribute__("serverURL")
+        url = 'http://%s/aisle/spark/%s' % (_serverURL ,appid)
+        response = requests.request("GET", url, headers=headers)
+        print "getstatus response : %s" % response
+        res = json.loads(response.text)
+        if(res['result']['app']['state'] == 'FINISHED'):
+            if(res['result']['app']['finalStatus'] == 'SUCCEEDED'):
+                return 1
+            return 0
+        if(res['result']['app']['state'] == 'FAILED'):
+            return 0
+        return -1
+
+
+
+    @staticmethod
+    def getLog(appid,offset,step,params):
+        _serverURL = params.__getattribute__("serverURL")
+        url = 'http://%s/aisle/spark/log/%s?offset=%s&step=%s' % (_serverURL,appid,offset,step)
+        response = requests.request("GET", url, headers=headers)
+        res = json.loads(response.text)
+        content = res["result"]["content"]
+        print content
+        return res["result"]["total_size"]
 
 
 class EmrRuntime(BasicRuntime):
@@ -307,6 +407,8 @@ class PigScriptBuilder(ScriptBuilder):
         return target_filename
 
 
+
+
 class GenericHadoopRuntime(BasicRuntime):
 
     def __init__(self, cluster_var_name="cluster"):
@@ -431,6 +533,12 @@ class GenericHadoopRuntime(BasicRuntime):
         return ret
 
 
+class SparkThread(threading.Thread):
+    def run(self):
+        for i in range(3):
+            time.sleep(1)
+            msg = "I'm "+self.name+' @ '+str(i)
+            print msg
 ##############
 # Decorators #
 ##############
@@ -459,6 +567,46 @@ class DataCanvas(object):
             return wrapper
 
         return decorator
+
+    def spark_jar_runtime(self,spec_json="spec.json"):
+        def decorator(method):
+            rt = BasicRuntime(spec_filename=spec_json)
+            params = rt.settings.Param
+            inputs = rt.settings.Input
+            outputs = rt.settings.Output
+
+            @functools.wraps(method)
+            def wrapper(_rt=rt,_params=params,_inputs=inputs,_outputs=outputs):
+                fileName = SparkRunTime().upload2Hdfs(rt.settings)
+                appid = SparkRunTime().notifyParam(rt.settings,fileName)
+                print appid
+                threading.Thread(target = method, args = (_rt, _params, _inputs, _outputs)).start()
+                offset = 0
+                step=10240
+                total_size = 1
+                while 1:
+                    code = SparkRunTime().getStatus(rt.settings[1],appid)
+                    if(code == 1):
+                        print "job success"
+                        if(offset < total_size):
+                            total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                            offset = offset + step
+                        break
+                    if(code == 0):
+                        print "job failure"
+                        if(offset < total_size):
+                            total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                            offset = offset + step
+                        else:
+                            break
+                    if(code == -1):
+                        time.sleep(5)
+                print rt
+
+            self._graph.append(wrapper)
+            return wrapper
+
+        return decorator;
 
     def hadoop_runtime(self, spec_json="spec.json"):
         def decorator(method):
