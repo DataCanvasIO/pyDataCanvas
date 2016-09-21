@@ -51,8 +51,8 @@ class SparkRunTime():
         params = setting[1];
         fileName = params.__getattribute__("SparkJar");
         _moudlename = setting.__getattribute__("Name");
-        _hdfsUrl = params.__getattribute__("hdfsUrl")
-        _ftpuserPW = params.__getattribute__("ftpuserPW")
+        _hdfsUrl = params.__getattribute__("Ftp2hdfs_Url")
+        _ftpuserPW = params.__getattribute__("Ftp2Hdfs_UserPass")
         fp = open(fileName, 'rb')
         content = fp.read()
         fp.close()
@@ -77,7 +77,6 @@ class SparkRunTime():
             file_handler.close()
         finally:
             ftp.quit()
-        print(_hdfsUrl+'==> upload')
         return md5fileName
 
 
@@ -86,10 +85,10 @@ class SparkRunTime():
         params = setting[1];
         _SparkJar = fileName
         _MainClass = params.__getattribute__("MainClass")
-        _serverURL = params.__getattribute__("serverURL")
-        _jvmParam = setting[1].__getattribute__("jvm")
+        _serverURL = params.__getattribute__("JobProxy_Url")
+        _jvmParam = setting[1].__getattribute__("Program_param")
         _moudleName = setting.__getattribute__("Name")
-        _username = unicode(params.__getattribute__("ftpuserPW")).split(u':')[0].__str__()
+        _username = unicode(params.__getattribute__("Ftp2Hdfs_UserPass")).split(u':')[0].__str__()
 
         paramjson = {}
         paramjson["userName"] = _username
@@ -103,12 +102,12 @@ class SparkRunTime():
         url = 'http://%s/aisle/spark' % _serverURL
         payload = json.dumps(paramjson)
         print payload
-        response = requests.request("POST", url, data=payload, headers=headers)
-        print("notify server: %s" %url)
+        response = requests.request("POST", url, data=payload, headers=default_headers)
+        print("spark runtime INFO : notify server %s" %url)
         if(response.status_code == 200):
             res = json.loads(response.text)
             return res["result"]["applicationId"]
-        print("server response: %s" %(response.text))
+        print("spark runtime INFO : server response %s" %(response.text))
         return None
 
     # 任务完成且成功返回1，完成但失败返回0，未完成返回-1
@@ -116,7 +115,7 @@ class SparkRunTime():
     def getStatus(params,appid):
         _serverURL = params.__getattribute__("serverURL")
         url = 'http://%s/aisle/spark/%s' % (_serverURL ,appid)
-        response = requests.request("GET", url, headers=headers)
+        response = requests.request("GET", url, headers=default_headers)
         print "getstatus response : %s" % response
         res = json.loads(response.text)
         if(res['result']['app']['state'] == 'FINISHED'):
@@ -131,9 +130,9 @@ class SparkRunTime():
 
     @staticmethod
     def getLog(appid,offset,step,params):
-        _serverURL = params.__getattribute__("serverURL")
+        _serverURL = params.__getattribute__("JobProxy_Url")
         url = 'http://%s/aisle/spark/log/%s?offset=%s&step=%s' % (_serverURL,appid,offset,step)
-        response = requests.request("GET", url, headers=headers)
+        response = requests.request("GET", url, headers=default_headers)
         res = json.loads(response.text)
         content = res["result"]["content"]
         print content
@@ -579,7 +578,6 @@ class DataCanvas(object):
             def wrapper(_rt=rt,_params=params,_inputs=inputs,_outputs=outputs):
                 fileName = SparkRunTime().upload2Hdfs(rt.settings)
                 appid = SparkRunTime().notifyParam(rt.settings,fileName)
-                print appid
                 threading.Thread(target = method, args = (_rt, _params, _inputs, _outputs)).start()
                 offset = 0
                 step=10240
@@ -587,13 +585,13 @@ class DataCanvas(object):
                 while 1:
                     code = SparkRunTime().getStatus(rt.settings[1],appid)
                     if(code == 1):
-                        print "job success"
+                        print "spark runtime INFO : job [%s] success" % appid
                         if(offset < total_size):
                             total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
                             offset = offset + step
                         break
                     if(code == 0):
-                        print "job failure"
+                        print "spark runtime INFO : job [%s] failure" % appid
                         if(offset < total_size):
                             total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
                             offset = offset + step
