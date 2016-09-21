@@ -14,6 +14,7 @@ from urlparse import urlparse, urlsplit, urlunsplit, urlunparse, unquote
 import urllib
 from json import loads as json_loads
 import copy
+import requests
 
 
 def clean_hdfs_path(p):
@@ -352,3 +353,10 @@ def preprocess_cluster_envs(base_envs, hadoop_type, cluster_def):
 
 def mask_key(s, show=5):
     return s[:show] + '*' * (len(s) - show*2) + s[-show:]
+
+
+default_headers = {
+    'content-type': "application/json",
+    'cache-control': "no-cache"
+}
+
