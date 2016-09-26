@@ -125,7 +125,7 @@ class Param(str):
     def __new__(cls, x, typeinfo):
         return str.__new__(cls, x)
 
-    def __init__(self, x, typeinfo):
+    def __init__(self, x, typeinfo):  # 声明类的2个属性
         super(Param, self).__init__()
         self._x = x
         self._typeinfo = typeinfo
@@ -140,7 +140,7 @@ class Param(str):
         if self.is_cluster:
             return self.show()
         else:
-            return str(self._x)
+            return self.val#str(self._x)
 
     def show(self, mask_keys=True):
         def get_safe_cluster_param(cp):
@@ -171,7 +171,7 @@ class Param(str):
     def is_cluster(self):
         return self._typeinfo['Type'] in ["cluster"]
 
-    @property
+    @property  #To call a method into attributes
     def val(self):
         type_handler = {
             "string": lambda x: x,
@@ -179,7 +179,9 @@ class Param(str):
             "integer": lambda x: int(x),
             "enum": lambda x: x,
             "cluster": lambda x: json.loads(x),
-            "file": read_whole_file
+            "file": read_whole_file,
+            "map": lambda x:json.loads(x),
+            "enum2": lambda x:json.loads(x)
         }
         param_type = self._typeinfo['Type']
         if param_type in type_handler:

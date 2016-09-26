@@ -86,13 +86,14 @@ class SparkRunTime():
         _SparkJar = fileName
         _MainClass = params.__getattribute__("MainClass")
         _serverURL = params.__getattribute__("JobProxy_Url")
-        _jvmParam = setting[1].__getattribute__("Program_param")
+        _jvmParam = setting[1].__getattribute__("Program_param").val
         _moudleName = setting.__getattribute__("Name")
         _username = unicode(params.__getattribute__("Ftp2Hdfs_UserPass")).split(u':')[0].__str__()
+        _type = params.__getattribute__("Type").val
 
         paramjson = {}
         paramjson["userName"] = _username
-        paramjson["type"] = "spark"
+        paramjson["type"] = _type
         _hdfsurl = '/user/datacanvas/%s/%s/%s' % (_username,_moudleName,_SparkJar)
         paramjson["data"] = {}
         paramjson["data"]["jar"] = _hdfsurl
@@ -113,10 +114,9 @@ class SparkRunTime():
     # 任务完成且成功返回1，完成但失败返回0，未完成返回-1
     @staticmethod
     def getStatus(params,appid):
-        _serverURL = params.__getattribute__("serverURL")
+        _serverURL = params.__getattribute__("JobProxy_Url")
         url = 'http://%s/aisle/spark/%s' % (_serverURL ,appid)
         response = requests.request("GET", url, headers=default_headers)
-        print "getstatus response : %s" % response
         res = json.loads(response.text)
         if(res['result']['app']['state'] == 'FINISHED'):
             if(res['result']['app']['finalStatus'] == 'SUCCEEDED'):
@@ -124,6 +124,7 @@ class SparkRunTime():
             return 0
         if(res['result']['app']['state'] == 'FAILED'):
             return 0
+        print "spark runtime INFO : job's status is running"
         return -1
 
 
