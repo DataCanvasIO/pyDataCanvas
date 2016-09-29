@@ -572,6 +572,7 @@ class DataCanvas(object):
         def decorator(method):
             rt = BasicRuntime(spec_filename=spec_json)
             params = rt.settings.Param
+            _type = params.__getattribute__("Type")
             inputs = rt.settings.Input
             outputs = rt.settings.Output
 
@@ -583,24 +584,36 @@ class DataCanvas(object):
                 offset = 0
                 step=10240
                 total_size = 1
-                while 1:
-                    code = SparkRunTime().getStatus(rt.settings[1],appid)
-                    if(code == 1):
-                        print "spark runtime INFO : job [%s] success" % appid
-                        if(offset < total_size):
-                            total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
-                            offset = offset + step
-                        break
-                    if(code == 0):
-                        print "spark runtime INFO : job [%s] failure" % appid
-                        if(offset < total_size):
-                            total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
-                            offset = offset + step
-                        else:
+                if(_type=="spark"):
+                    while 1:
+                        code = SparkRunTime().getStatus(rt.settings[1],appid)
+                        if(code == 1):
+                            print "spark runtime INFO : job [%s] success" % appid
+                            if(offset < total_size):
+                                total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                                offset = offset + step
                             break
-                    if(code == -1):
+                        if(code == 0):
+                            print "spark runtime INFO : job [%s] failure" % appid
+                            if(offset < total_size):
+                                total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                                offset = offset + step
+                            else:
+                                break
+                        if(code == -1):
+                            time.sleep(5)
+                    print rt
+                elif(_type == "spark_r"):
+                    _attempt = 0
+                    while 1:
+                        total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                        offset = offset + step
+                        if(total_size == -2 and _attempt<5):
+                            _attempt += 1
+                            print ("spark runtime INFO : attempt %s,log is being prepared" % _attempt)
+                        if (total_size != -1 and total_size != -2 and offset >= total_size):
+                            break
                         time.sleep(5)
-                print rt
 
             self._graph.append(wrapper)
             return wrapper
