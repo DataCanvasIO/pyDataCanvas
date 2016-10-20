@@ -122,13 +122,14 @@ class Output(str):
 
 
 class Param(str):
-    def __new__(cls, x, typeinfo):
+    def __new__(cls, x, typeinfo , scope):
         return str.__new__(cls, x)
 
-    def __init__(self, x, typeinfo):  # 声明类的2个属性
+    def __init__(self, x, typeinfo , scope):  # 声明类的2个属性
         super(Param, self).__init__()
         self._x = x
         self._typeinfo = typeinfo
+        self._scope = scope
 
     def __repr__(self):
         if self.is_cluster:
@@ -237,7 +238,7 @@ def param_builder(spec_param, param_json):
             return spec_param[k]['Default']
 
     ParamSettings = namedtuple('ParamSettings', spec_param.keys())
-    param_dict = {k: Param(get_param(k), v) for k, v in spec_param.items()}
+    param_dict = {k: Param(get_param(k), v,v.get("scope",None)) for k, v in spec_param.items()}
     env_settings = ParamSettings(**param_dict)
     return env_settings
 
