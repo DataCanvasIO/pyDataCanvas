@@ -122,10 +122,10 @@ class Output(str):
 
 
 class Param(str):
-    def __new__(cls, x, typeinfo , scope):
+    def __new__(cls, x, typeinfo,scope):
         return str.__new__(cls, x)
 
-    def __init__(self, x, typeinfo , scope):  # 声明类的2个属性
+    def __init__(self, x, typeinfo ,scope):  # 声明类的2个属性
         super(Param, self).__init__()
         self._x = x
         self._typeinfo = typeinfo
@@ -181,8 +181,8 @@ class Param(str):
             "enum": lambda x: x,
             "cluster": lambda x: json.loads(x),
             "file": read_whole_file,
-            "map": lambda x:json.loads(x),
-            "enum2": lambda x:json.loads(x)
+            "map": lambda x:x,
+            "enum2": lambda x:x
         }
         param_type = self._typeinfo['Type']
         if param_type in type_handler:
