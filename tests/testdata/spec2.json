@@ -1,0 +1,63 @@
+{
+  "Name": "20170303ljspark7",
+  "Description": "A simple SVM",
+  "Version": "0.1",
+  "CategoryTags": [],
+  "Cmd": "python main.py",
+  "PARAM":"",
+  "GLOBAL_PARAM":{
+    "SparkJar":{
+      "Val":""
+    },
+    "Ftp2hdfs_Url":{
+      "Val":""
+    },
+    "Ftp2Hdfs_UserPass":{
+      "Val":""
+    },
+    "MainClass":{
+      "Val":""
+    },
+    "JobProxy_Url":{
+      "Val":""
+    },
+    "Program_param":{
+      "Val":""
+    },
+    "Type":{
+      "Val":""
+    }
+  },
+  "Param": {
+    "SparkJar": {
+      "Default": "dataframe.R",
+      "Type": "string"
+    },
+    "Ftp2hdfs_Url": {
+      "Default": "eds.zetyun.com:5005",
+      "Type": "string"
+    },
+    "Ftp2Hdfs_UserPass": {
+      "Default": "liujie:123456",
+      "Type": "string"
+    },
+    "MainClass": {
+      "Default": "als.py",
+      "Type": "string"
+    },
+    "JobProxy_Url": {
+      "Default": "eds.zetyun.com:1234",
+      "Type": "string"
+    },
+    "Program_param": {
+      "Default": "aaa",
+      "Type": "string"
+    },
+    "Type":{
+      "Default": "spark_r",
+      "Type": "string"
+    }
+  },
+  "Input": {},
+  "Output": {}
+}

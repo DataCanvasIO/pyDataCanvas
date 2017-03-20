@@ -136,7 +136,8 @@ class SparkRunTime():
         response = requests.request("GET", url, headers=default_headers)
         res = json.loads(response.text)
         content = res["result"]["content"]
-        print content
+        if content is not u'':
+            print content
         return res["result"]["total_size"]
 
 
@@ -588,13 +589,13 @@ class DataCanvas(object):
                     while 1:
                         code = SparkRunTime().getStatus(rt.settings[1],appid)
                         if(code == 1):
-                            print "spark runtime INFO : job [%s] success" % appid
+                            print "[spark runtime INFO] : job [%s] success" % appid
                             if(offset < total_size):
                                 total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
                                 offset = offset + step
                             break
                         if(code == 0):
-                            print "spark runtime INFO : job [%s] failure" % appid
+                            print "[spark runtime INFO] : job [%s] failure" % appid
                             if(offset < total_size):
                                 total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
                                 offset = offset + step
@@ -606,13 +607,19 @@ class DataCanvas(object):
                 elif(_type == "spark_r"):
                     _attempt = 0
                     while 1:
+                        # totalsize: -2:没日志   -1：日志还没产生完    普通返回值：日志产生完毕
                         total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
-                        offset = offset + step
-                        if(total_size == -2 and _attempt<5):
+                        offset = offset + step  # 下次取得日志开始位置
+                        if(total_size == -2 and _attempt<15):
                             _attempt += 1
-                            print ("spark runtime INFO : attempt %s,log is being prepared" % _attempt)
-                        if (total_size != -1 and total_size != -2 and offset >= total_size):
-                            break
+                            print ("[spark runtime INFO]:attempt %s,log is being prepared" % _attempt)
+                            offset = 0
+                        elif (total_size == -1):
+                            print ("[spark runtime INFO]:job is running, please wait for log")
+                            offset = 0
+                        else:
+                            if(offset>total_size):  #日志取完了
+                                break
                         time.sleep(5)
 
             self._graph.append(wrapper)
