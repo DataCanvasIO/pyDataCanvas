@@ -4,13 +4,18 @@
 A series of functions to parse hadoop logs, for example, the hadoop counter.
 """
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from past.builtins import basestring
+from builtins import object
 import re
 import string
 import pyparsing as pyp
 from collections import OrderedDict
 
 try:
-    from cStringIO import StringIO
+    from io import StringIO
 except ImportError:  # python 3
     from io import StringIO
 

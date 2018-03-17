@@ -40,7 +40,7 @@ class BaseIO(dict):
     Type = _create_property("Type", "", read_only=False, from_meta=False)
 
     def _init_attrs(self, attrs):
-        for attr_name in attrs.keys():
+        for attr_name in list(attrs.keys()):
             if hasattr(self.__class__, attr_name) and isinstance(getattr(DS_Hive, attr_name), property):
                 setattr(self, attr_name, attrs.pop(attr_name))
 
@@ -135,11 +135,11 @@ def register_handler(type_name, type_pattern, handler, is_regex=False):
 
 
 def specific_types():
-    return dict((k, v) for k, v in _handler_callbacks.items() if not v.is_regex)
+    return dict((k, v) for k, v in list(_handler_callbacks.items()) if not v.is_regex)
 
 
 def generic_types():
-    return dict((k, v) for k, v in _handler_callbacks.items() if v.is_regex)
+    return dict((k, v) for k, v in list(_handler_callbacks.items()) if v.is_regex)
 
 
 def all_types():
@@ -196,7 +196,7 @@ def from_json(json_object):
             return stypes[jo_type].handler(json_object)
         else:
             # Generic Type
-            for gt_name, gt_obj in gtypes.items():
+            for gt_name, gt_obj in list(gtypes.items()):
                 if re.match(gt_obj.type_pattern, jo_type):
                     return gt_obj.handler(json_object)
             else:

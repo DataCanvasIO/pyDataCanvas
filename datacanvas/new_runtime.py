@@ -3,6 +3,11 @@
 """
 A series of Runtime.
 """
+
+from __future__ import print_function
+from builtins import str
+from builtins import range
+from builtins import object
 import threading
 from ftplib import FTP
 import functools
@@ -16,6 +21,7 @@ from datacanvas import version as datacanvas_version
 from datacanvas.clusters import EmrCluster, QuboleCluster, EhcCluster, GenericHadoopCluster
 from datacanvas.module import get_settings_from_file
 from datacanvas.utils import *
+from datacanvas.validate import Validator
 
 
 class BasicRuntime(object):
@@ -45,56 +51,55 @@ def HadoopRuntime(*args, **kwargs):
     return GenericHadoopRuntime(*args, **kwargs)
 
 
-class SparkRunTime():
+class SparkRunTime(object):
     @staticmethod
     def upload2Hdfs(setting):
         params = setting[1];
         fileName = params.__getattribute__("SparkJar");
-        _moudlename = setting.__getattribute__("Name");
+        _moduleName = setting.__getattribute__("Name");
         _hdfsUrl = params.__getattribute__("Ftp2hdfs_Url")
-        _ftpuserPW = params.__getattribute__("Ftp2Hdfs_UserPass")
+        _ftpUserPW = params.__getattribute__("Ftp2Hdfs_UserPass")
         fp = open(fileName, 'rb')
         content = fp.read()
         fp.close()
         m = hashlib.md5(content)
         md5fileName = m.hexdigest()  # md5
-        ftp=FTP()
+        ftp = FTP()
         ftp.set_debuglevel(0)
-        ftp.connect(unicode(_hdfsUrl).split(u':')[0].__str__(),unicode(_hdfsUrl).split(u':')[1].__str__())
-        ftp.login(unicode(_ftpuserPW).split(u':')[0].__str__(),unicode(_ftpuserPW).split(u':')[1].__str__())
+        ftp.connect(str(_hdfsUrl).split(u':')[0].__str__(), str(_hdfsUrl).split(u':')[1].__str__())
+        ftp.login(str(_ftpUserPW).split(u':')[0].__str__(), str(_ftpUserPW).split(u':')[1].__str__())
         try:
-            ftp.cwd(_moudlename)
+            ftp.cwd(_moduleName)
         except:
-            ftp.mkd(_moudlename)
+            ftp.mkd(_moduleName)
         try:
             ftp.size(md5fileName)
-            print "file has been uploaded,pass it"
+            print("file has been uploaded,pass it")
         except:
-            bufsize = 1024                           #set buffer
-            file_handler = open(fileName,'rb')      #read binary
-            ftp.storbinary('STOR %s' % os.path.basename(md5fileName),file_handler,bufsize)    #upload file
+            bufsize = 1024  # set buffer
+            file_handler = open(fileName, 'rb')  # read binary
+            ftp.storbinary('STOR %s' % os.path.basename(md5fileName), file_handler, bufsize)  # upload file
             ftp.set_debuglevel(1)
             file_handler.close()
         finally:
             ftp.quit()
         return md5fileName
 
-
     @staticmethod
-    def notifyParam(setting,fileName):
+    def notifyParam(setting, fileName):
         params = setting[1];
         _SparkJar = fileName
         _MainClass = params.__getattribute__("MainClass")
         _serverURL = params.__getattribute__("JobProxy_Url")
         _jvmParam = setting[1].__getattribute__("Program_param").val
         _moudleName = setting.__getattribute__("Name")
-        _username = unicode(params.__getattribute__("Ftp2Hdfs_UserPass")).split(u':')[0].__str__()
+        _username = str(params.__getattribute__("Ftp2Hdfs_UserPass")).split(u':')[0].__str__()
         _type = params.__getattribute__("Type").val
 
         paramjson = {}
         paramjson["userName"] = _username
         paramjson["type"] = _type
-        _hdfsurl = '/user/datacanvas/%s/%s/%s' % (_username,_moudleName,_SparkJar)
+        _hdfsurl = '/user/datacanvas/%s/%s/%s' % (_username, _moudleName, _SparkJar)
         paramjson["data"] = {}
         paramjson["data"]["jar"] = _hdfsurl
         paramjson["data"]["class"] = _MainClass
@@ -102,42 +107,42 @@ class SparkRunTime():
 
         url = 'http://%s/aisle/spark' % _serverURL
         payload = json.dumps(paramjson)
-        print payload
+        print(payload)
         response = requests.request("POST", url, data=payload, headers=default_headers)
-        print("spark runtime INFO : notify server %s" %url)
-        if(response.status_code == 200):
+        print("spark runtime INFO : notify server %s" % url)
+        if (response.status_code == 200):
             res = json.loads(response.text)
             return res["result"]["applicationId"]
-        print("spark runtime INFO : server response %s" %(response.text))
+        print("spark runtime INFO : server response %s" % (response.text))
         return None
 
     # 任务完成且成功返回1，完成但失败返回0，未完成返回-1
     @staticmethod
-    def getStatus(params,appid):
+    def getStatus(params, appId):
         _serverURL = params.__getattribute__("JobProxy_Url")
-        url = 'http://%s/aisle/spark/%s' % (_serverURL ,appid)
+        url = 'http://%s/aisle/spark/%s' % (_serverURL, appId)
         response = requests.request("GET", url, headers=default_headers)
         res = json.loads(response.text)
-        if(res['result']['app']['state'] == 'FINISHED'):
-            if(res['result']['app']['finalStatus'] == 'SUCCEEDED'):
+        if (res['result']['app']['state'] == 'FINISHED'):
+            if (res['result']['app']['finalStatus'] == 'SUCCEEDED'):
                 return 1
             return 0
-        if(res['result']['app']['state'] == 'FAILED'):
+        if (res['result']['app']['state'] == 'FAILED'):
             return 0
-        print "spark runtime INFO : job's status is running"
+        print("spark runtime INFO : job's status is running")
         return -1
 
-
-
     @staticmethod
-    def getLog(appid,offset,step,params):
+    def getLog(appid, offset, step, params):
+        print("appid:%s,offset:%s,step:%s" % (str(appid), str(offset), str(step)))
         _serverURL = params.__getattribute__("JobProxy_Url")
-        url = 'http://%s/aisle/spark/log/%s?offset=%s&step=%s' % (_serverURL,appid,offset,step)
+        url = 'http://%s/aisle/spark/log/%s?offset=%s&step=%s' % (_serverURL, appid, offset, step)
         response = requests.request("GET", url, headers=default_headers)
         res = json.loads(response.text)
+        # print("visit rest:%s" % url)
+        print("[log rest result]:%s" % res["result"]["total_size"])
         content = res["result"]["content"]
-        if content is not u'':
-            print content
+        print(content)
         return res["result"]["total_size"]
 
 
@@ -194,7 +199,6 @@ class EmrPigRuntime(BasicRuntime):
 
 
 class ScriptBuilder(object):
-
     def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params=None):
         self.settings = settings
         self.s3_working_root = s3_working_root
@@ -211,7 +215,6 @@ class ScriptBuilder(object):
 
 
 class HiveScriptBuilder(ScriptBuilder):
-
     def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params, ignore_output_type_error=True):
         super(HiveScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root, cluster_params)
         self.ignore_output_type_error = ignore_output_type_error
@@ -280,7 +283,7 @@ class HiveScriptBuilder(ScriptBuilder):
             extra_vars = {}
 
         # Build Output Tables
-        for output_name, output_obj in self.settings.Output._asdict().items():
+        for output_name, output_obj in list(self.settings.Output._asdict().items()):
             output_obj.val = self.hive_create_output(output_name, output_obj)
 
         def _get_io_val(obj):
@@ -298,10 +301,13 @@ class HiveScriptBuilder(ScriptBuilder):
                 ["ADD FILE %s;" % f for f in uploaded_files],
                 ["ADD JAR %s;" % f for f in uploaded_jars],
                 ["set hivevar:MYNS = %s;" % hive_ns],
-                ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in self.settings.Param._asdict().items() if v.is_primitive],
-                ["set hivevar:INPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Input._asdict().items()],
-                ["set hivevar:OUTPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in self.settings.Output._asdict().items() if v.val],
-                ["set hivevar:%s = %s;" % (k, v) for k, v in extra_vars.items()]))
+                ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in list(self.settings.Param._asdict().items()) if
+                 v.is_primitive],
+                ["set hivevar:INPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in
+                 list(self.settings.Input._asdict().items())],
+                ["set hivevar:OUTPUT_%s = %s;" % (k, _get_io_val(v.val)) for k, v in
+                 list(self.settings.Output._asdict().items()) if v.val],
+                ["set hivevar:%s = %s;" % (k, v) for k, v in list(extra_vars.items())]))
 
     def generate_script(self, hive_script, uploaded_files, uploaded_jars, extra_vars=None):
         hive_ns = self.get_hive_namespace()
@@ -330,7 +336,6 @@ class HiveScriptBuilder(ScriptBuilder):
 
 
 class PigScriptBuilder(ScriptBuilder):
-
     def __init__(self, settings, s3_working_root, hdfs_working_root, cluster_params):
         super(PigScriptBuilder, self).__init__(settings, s3_working_root, hdfs_working_root, cluster_params)
 
@@ -364,20 +369,20 @@ class PigScriptBuilder(ScriptBuilder):
             extra_vars = {}
 
         # Build Output Tables
-        for output_name, output_obj in self.settings.Output._asdict().items():
+        for output_name, output_obj in list(self.settings.Output._asdict().items()):
             output_obj.val = self.pig_create_output(output_name, output_obj)
 
         return "\n".join(
             itertools.chain(
                 ["%%declare PARAM_%s '%s'" % (k, v)
-                 for k, v in self.settings.Param._asdict().items()
+                 for k, v in list(self.settings.Param._asdict().items())
                  if v.is_primitive],
                 ["%%declare INPUT_%s '%s'" % (k, v.val)
-                 for k, v in self.settings.Input._asdict().items()],
+                 for k, v in list(self.settings.Input._asdict().items())],
                 ["%%declare OUTPUT_%s '%s'" % (k, v.val)
-                 for k, v in self.settings.Output._asdict().items()],
+                 for k, v in list(self.settings.Output._asdict().items())],
                 ["%%declare %s '%s'" % (k, v.val)
-                 for k, v in extra_vars.items()],
+                 for k, v in list(extra_vars.items())],
                 ["REGISTER '%s';" % f
                  for f in uploaded_jars]
             ))
@@ -408,10 +413,7 @@ class PigScriptBuilder(ScriptBuilder):
         return target_filename
 
 
-
-
 class GenericHadoopRuntime(BasicRuntime):
-
     def __init__(self, cluster_var_name="cluster"):
         super(GenericHadoopRuntime, self).__init__()
         self.hadoop_type = None
@@ -425,11 +427,11 @@ class GenericHadoopRuntime(BasicRuntime):
         param_dict = self.settings.Param._asdict()
         if (cluster_var_name in param_dict) and param_dict[cluster_var_name].is_cluster:
             cluster_type = self._get_cluster_type(cluster_var_name)
-            print param_dict.get(cluster_var_name).type
-            print "=================================================="
-            print "Use cluster var :: '%s'" % cluster_var_name
-            print "           type :: '%s'" % cluster_type
-            print "=================================================="
+            print(param_dict.get(cluster_var_name).type)
+            print("==================================================")
+            print("Use cluster var :: '%s'" % cluster_var_name)
+            print("           type :: '%s'" % cluster_type)
+            print("==================================================")
             self.switch_hadoop_env(cluster_type, cluster_var_name)
 
     def _get_cluster_type(self, cluster_var_name):
@@ -442,8 +444,8 @@ class GenericHadoopRuntime(BasicRuntime):
         return cluster_params
 
     def switch_hadoop_env(self, hadoop_type, cluster_var_name="cluster", extra_env_vars=None):
-        print "Switching to Hadoop type = '%s'" % hadoop_type
-        print "pyDataCanvas version : '%s'" % datacanvas_version
+        print("Switching to Hadoop type = '%s'" % hadoop_type)
+        print("pyDataCanvas version : '%s'" % datacanvas_version)
         cluster_params = self._get_cluster_params(cluster_var_name)
         self.cluster_params = cluster_params
 
@@ -485,7 +487,7 @@ class GenericHadoopRuntime(BasicRuntime):
             raise Exception("Do NOT support hadoop_type '%s'" % hadoop_type)
 
         self.cluster.clean_working_dir(self.working_root)
-        print self.working_root
+        print(self.working_root)
 
     def get_working_dir(self, path=""):
         if not self.working_root:
@@ -538,8 +540,10 @@ class SparkThread(threading.Thread):
     def run(self):
         for i in range(3):
             time.sleep(1)
-            msg = "I'm "+self.name+' @ '+str(i)
-            print msg
+            msg = "I'm " + self.name + ' @ ' + str(i)
+            print(msg)
+
+
 ##############
 # Decorators #
 ##############
@@ -551,6 +555,9 @@ class DataCanvas(object):
         self._name = name
         self._graph = []
         self._rt = None
+        isValidate = os.environ.get("isValidate")
+        if isValidate == 'true':
+            Validator.validate()
 
     def basic_runtime(self, spec_json="spec.json"):
         def decorator(method):
@@ -561,7 +568,7 @@ class DataCanvas(object):
 
             @functools.wraps(method)
             def wrapper(_rt=rt, _params=params, _inputs=inputs, _outputs=outputs):
-                print rt
+                print(rt)
                 method(_rt, _params, _inputs, _outputs)
 
             self._graph.append(wrapper)
@@ -569,7 +576,7 @@ class DataCanvas(object):
 
         return decorator
 
-    def spark_jar_runtime(self,spec_json="spec.json"):
+    def spark_jar_runtime(self, spec_json="spec.json"):
         def decorator(method):
             rt = BasicRuntime(spec_filename=spec_json)
             params = rt.settings.Param
@@ -578,47 +585,47 @@ class DataCanvas(object):
             outputs = rt.settings.Output
 
             @functools.wraps(method)
-            def wrapper(_rt=rt,_params=params,_inputs=inputs,_outputs=outputs):
+            def wrapper(_rt=rt, _params=params, _inputs=inputs, _outputs=outputs):
                 fileName = SparkRunTime().upload2Hdfs(rt.settings)
-                appid = SparkRunTime().notifyParam(rt.settings,fileName)
-                threading.Thread(target = method, args = (_rt, _params, _inputs, _outputs)).start()
+                appid = SparkRunTime().notifyParam(rt.settings, fileName)
+                threading.Thread(target=method, args=(_rt, _params, _inputs, _outputs)).start()
                 offset = 0
-                step=10240
+                step = 10240
                 total_size = 1
-                if(_type=="spark"):
+                if (_type == "spark"):
                     while 1:
-                        code = SparkRunTime().getStatus(rt.settings[1],appid)
-                        if(code == 1):
-                            print "[spark runtime INFO] : job [%s] success" % appid
-                            if(offset < total_size):
-                                total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                        code = SparkRunTime().getStatus(rt.settings[1], appid)
+                        if (code == 1):
+                            print("spark runtime INFO : job [%s] success" % appid)
+                            if (offset < total_size):
+                                total_size = SparkRunTime().getLog(appid, offset, step, rt.settings[1])
                                 offset = offset + step
                             break
-                        if(code == 0):
-                            print "[spark runtime INFO] : job [%s] failure" % appid
-                            if(offset < total_size):
-                                total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                        if (code == 0):
+                            print("spark runtime INFO : job [%s] failure" % appid)
+                            if (offset < total_size):
+                                total_size = SparkRunTime().getLog(appid, offset, step, rt.settings[1])
                                 offset = offset + step
                             else:
                                 break
-                        if(code == -1):
+                        if (code == -1):
                             time.sleep(5)
-                    print rt
-                elif(_type == "spark_r"):
+                    print(rt)
+                elif (_type == "spark_r"):
                     _attempt = 0
                     while 1:
                         # totalsize: -2:没日志   -1：日志还没产生完    普通返回值：日志产生完毕
-                        total_size = SparkRunTime().getLog(appid,offset,step,rt.settings[1])
+                        total_size = SparkRunTime().getLog(appid, offset, step, rt.settings[1])
                         offset = offset + step  # 下次取得日志开始位置
-                        if(total_size == -2 and _attempt<15):
+                        if (total_size == -2 and _attempt < 15):
                             _attempt += 1
-                            print ("[spark runtime INFO]:attempt %s,log is being prepared" % _attempt)
+                            print ("spark runtime INFO : attempt %s,log is being prepared" % _attempt)
                             offset = 0
                         elif (total_size == -1):
-                            print ("[spark runtime INFO]:job is running, please wait for log")
+                            print ("spark runtime INFO : log in collecting , please wait ..")
                             offset = 0
                         else:
-                            if(offset>total_size):  #日志取完了
+                            if (offset > total_size):  # 日志取完了
                                 break
                         time.sleep(5)
 
@@ -636,7 +643,7 @@ class DataCanvas(object):
 
             @functools.wraps(method)
             def wrapper(_rt=rt, _params=params, _inputs=inputs, _outputs=outputs):
-                print rt
+                print(rt)
                 method(_rt, _params, _inputs, _outputs)
 
             self._graph.append(wrapper)

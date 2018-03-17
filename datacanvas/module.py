@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+from builtins import str
 import os
 import re
 import sys
@@ -206,7 +208,7 @@ def gettype(name):
     }
     if name not in type_map:
         raise ValueError(name)
-    t = __builtins__.get(type_map[name], types.StringType)
+    t = __builtins__.get(type_map[name], bytes)
     if isinstance(t, type):
         return t
     raise ValueError(name)
@@ -214,17 +216,17 @@ def gettype(name):
 
 def input_output_builder(spec_input, spec_output):
     params = dict(arg.split("=") for arg in sys.argv[1:])
-    if not all(k in params for k in spec_input.keys()):
+    if not all(k in params for k in list(spec_input.keys())):
         raise ValueError("Missing input parameters")
-    if not all(k in params for k in spec_output.keys()):
+    if not all(k in params for k in list(spec_output.keys())):
         raise ValueError("Missing output parameters")
 
-    inputSettings = namedtuple('InputSettings', spec_input.keys())
-    in_params = {in_k: Input(params[in_k], in_type) for in_k, in_type in spec_input.items()}
+    inputSettings = namedtuple('InputSettings', list(spec_input.keys()))
+    in_params = {in_k: Input(params[in_k], in_type) for in_k, in_type in list(spec_input.items())}
     input_settings = inputSettings(**in_params)
 
-    OutputSettings = namedtuple('OutputSettings', spec_output.keys())
-    out_params = {out_k: Output(params[out_k], out_type) for out_k, out_type in spec_output.items()}
+    OutputSettings = namedtuple('OutputSettings', list(spec_output.keys()))
+    out_params = {out_k: Output(params[out_k], out_type) for out_k, out_type in list(spec_output.items())}
     output_settings = OutputSettings(**out_params)
 
     return input_settings, output_settings
@@ -237,14 +239,14 @@ def param_builder(spec_param, param_json):
         else:
             return spec_param[k]['Default']
 
-    ParamSettings = namedtuple('ParamSettings', spec_param.keys())
-    param_dict = {k: Param(get_param(k), v,v.get("scope",None)) for k, v in spec_param.items()}
+    ParamSettings = namedtuple('ParamSettings', list(spec_param.keys()))
+    param_dict = {k: Param(get_param(k), v,v.get("scope",None)) for k, v in list(spec_param.items())}
     env_settings = ParamSettings(**param_dict)
     return env_settings
 
 
 def global_param_builder(param_json):
-    return {k: v['Val'] for k, v in param_json.items()}
+    return {k: v['Val'] for k, v in list(param_json.items())}
 
 
 def get_settings(spec_json):

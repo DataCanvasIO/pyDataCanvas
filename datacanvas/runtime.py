@@ -3,7 +3,13 @@
 """
 A series of Runtime.
 """
+from __future__ import print_function
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import range
+from builtins import object
 import boto
 import time
 import itertools
@@ -111,7 +117,7 @@ class EmrRuntime(HadoopRuntime):
             raise Exception("Can not clean s3 path : %s" % s3_working_dir)
 
     def s3_upload(self, filename):
-        from urlparse import urlparse
+        from urllib.parse import urlparse
 
         parse_ret = urlparse(filename)
         if parse_ret.scheme == '':
@@ -136,7 +142,7 @@ class EmrRuntime(HadoopRuntime):
                                 for i in self.cluster.s3_list_files(self.cluster.emr_step_log_filename(step_id))]
             intersection_files = set(log_files) & set(remote_log_files)
             if not intersection_files:
-                print "Seems logs are not ready on s3, retry..."
+                print("Seems logs are not ready on s3, retry...")
                 retry_count -= 1
                 time.sleep(retry_interval)
                 continue
@@ -145,18 +151,18 @@ class EmrRuntime(HadoopRuntime):
                                     for i in self.cluster.s3_list_files(self.cluster.emr_step_log_filename(step_id))]
                 if set(remote_log_files) >= {"controller", "stdout", "stderr"}:
                     break
-                print "Fetching s3 logs..."
+                print("Fetching s3 logs...")
                 time.sleep(retry_interval)
             for log_file in log_files:
                 log_path = self.cluster.emr_step_log_filename(step_id, log_file)
-                print "==================================="
-                print "Dump EMR log file (step=%s): %s" % (step_id, log_file)
-                print "Log Path : %s" % log_path
-                print "==================================="
+                print("===================================")
+                print("Dump EMR log file (step=%s): %s" % (step_id, log_file))
+                print("Log Path : %s" % log_path)
+                print("===================================")
                 if self.cluster.s3_list_files(log_path):
-                    print self.cluster.emr_step_log(step_id, log_file=log_file)
+                    print(self.cluster.emr_step_log(step_id, log_file=log_file))
                 else:
-                    print "Log file does not exist"
+                    print("Log file does not exist")
             return
 
 
@@ -179,7 +185,7 @@ class HiveRuntime(HadoopRuntime):
 
     def header_builder(self, hive_ns, uploaded_files, uploaded_jars):
         # Build Output Tables
-        for output_name, output_obj in self.settings.Output._asdict().items():
+        for output_name, output_obj in list(self.settings.Output._asdict().items()):
             output_obj.val = self.hive_output_builder(output_name, output_obj)
 
         return "\n".join(
@@ -187,9 +193,9 @@ class HiveRuntime(HadoopRuntime):
                 ["ADD FILE %s;" % f for f in uploaded_files],
                 ["ADD JAR %s;" % f for f in uploaded_jars],
                 ["set hivevar:MYNS = %s;" % hive_ns],
-                ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in self.settings.Param._asdict().items()],
-                ["set hivevar:INPUT_%s = %s;" % (k, v.val) for k, v in self.settings.Input._asdict().items()],
-                ["set hivevar:OUTPUT_%s = %s;" % (k, v.val) for k, v in self.settings.Output._asdict().items()]))
+                ["set hivevar:PARAM_%s = %s;" % (k, v) for k, v in list(self.settings.Param._asdict().items())],
+                ["set hivevar:INPUT_%s = %s;" % (k, v.val) for k, v in list(self.settings.Input._asdict().items())],
+                ["set hivevar:OUTPUT_%s = %s;" % (k, v.val) for k, v in list(self.settings.Output._asdict().items())]))
 
     def clean_working_dir(self):
         self.hdfs_clean_working_dir()
@@ -326,14 +332,14 @@ class PigRuntime(HadoopRuntime):
 
     def header_builder(self, uploaded_jars):
         # Build Output Tables
-        for output_name, output_obj in self.settings.Output._asdict().items():
+        for output_name, output_obj in list(self.settings.Output._asdict().items()):
             output_obj.val = self.pig_output_builder(output_name, output_obj)
 
         return "\n".join(
             itertools.chain(
-                ["%%declare PARAM_%s '%s'" % (k, v) for k, v in self.settings.Param._asdict().items()],
-                ["%%declare INPUT_%s '%s'" % (k, v.val) for k, v in self.settings.Input._asdict().items()],
-                ["%%declare OUTPUT_%s '%s'" % (k, v.val) for k, v in self.settings.Output._asdict().items()],
+                ["%%declare PARAM_%s '%s'" % (k, v) for k, v in list(self.settings.Param._asdict().items())],
+                ["%%declare INPUT_%s '%s'" % (k, v.val) for k, v in list(self.settings.Input._asdict().items())],
+                ["%%declare OUTPUT_%s '%s'" % (k, v.val) for k, v in list(self.settings.Output._asdict().items())],
                 ["REGISTER '%s';" % f for f in uploaded_jars]
             ))
 

@@ -37,6 +37,7 @@ htmlcov/
 .tox/
 .coverage
 .cache
+.pytest_cache/
 nosetests.xml
 coverage.xml
 
@@ -52,3 +53,7 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# Jetbrains
+*.iml
+

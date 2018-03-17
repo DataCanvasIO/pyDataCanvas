@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+from builtins import object
 import json
 import time
 import requests
@@ -72,9 +74,9 @@ class EhcClient(object):
         r = self._post_command(req_handler, "jar", **kwargs)
 
         if r.status_code != 200:
-            print r.request.url
-            print r.request.body
-            print r.content
+            print(r.request.url)
+            print(r.request.body)
+            print(r.content)
             raise ServiceError("ServiceError", "Failed to request '%s'" % req_handler)
         return r.json()
 
@@ -82,9 +84,9 @@ class EhcClient(object):
         req_handler = "/api/ehc/command/submit"
         r = self._post_command(req_handler, "hive", file=hql_script_path)
         if r.status_code != 200:
-            print r.request.url
-            print r.request.body
-            print r.content
+            print(r.request.url)
+            print(r.request.body)
+            print(r.content)
             raise ServiceError("ServiceError", "Failed to request '%s'" % req_handler)
         return r.json()
 
@@ -111,7 +113,7 @@ class EhcClient(object):
             r = self.get_command_status(cmd_id)
             job_status = r['status'].lower()
             if verbose:
-                print "EHC.Command(ehc_id = '%s', cmd_id = '%s') Status is '%s'" % (self.ehc_id, cmd_id, job_status)
+                print("EHC.Command(ehc_id = '%s', cmd_id = '%s') Status is '%s'" % (self.ehc_id, cmd_id, job_status))
             if job_status in ["running", "prep"]:
                 time.sleep(interval)
                 continue

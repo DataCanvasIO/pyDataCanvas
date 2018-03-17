@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import next
+from builtins import zip
+from past.builtins import basestring
+from builtins import object
 import os
 import sys
 import tempfile
@@ -10,8 +18,8 @@ import subprocess
 import boto
 import boto.emr.emrobject
 import boto.emr.step
-from urlparse import urlparse, urlsplit, urlunsplit, urlunparse, unquote
-import urllib
+from urllib.parse import urlparse, urlsplit, urlunsplit, urlunparse, unquote
+import urllib.request, urllib.parse, urllib.error
 from json import loads as json_loads
 import copy
 import requests
@@ -41,7 +49,6 @@ def cmd(cmd_str):
 
 
 def s3_upload(bucket, local_filename, remote_filename):
-
     if urlparse(local_filename).scheme in ["s3", "s3n"]:
         return local_filename
 
@@ -66,7 +73,7 @@ def s3_upload(bucket, local_filename, remote_filename):
         fp_num = 0
         while fp.tell() < filesize:
             fp_num += 1
-            print "uploading part %i" % fp_num
+            print("uploading part %i" % fp_num)
             mp.upload_part_from_file(fp, fp_num, cb=percent_cb, num_cb=10, size=PART_SIZE)
         mp.complete_upload()
         print("Done")
@@ -84,7 +91,7 @@ def s3_upload(bucket, local_filename, remote_filename):
 
 
 def s3_delete(bucket, s3_path):
-    from urlparse import urlparse
+    from urllib.parse import urlparse
 
     print("s3_delete %s" % s3_path)
     prefix_path = urlparse(s3_path).path[1:]
@@ -144,10 +151,11 @@ class cached_property(object):
 
 def url_path_join(*parts):
     """Normalize url parts and join them with a slash."""
-    schemes, netlocs, paths, queries, fragments = zip(*(urlsplit(part) for part in parts))
+    schemes, netlocs, paths, queries, fragments = list(zip(*(urlsplit(part) for part in parts)))
     scheme, netloc, query, fragment = first_of_each(schemes, netlocs, queries, fragments)
     path = '/'.join(x.strip('/') for x in paths if x)
     return urlunsplit((scheme, netloc, path, query, fragment))
+
 
 def first_of_each(*sequences):
     return (next((x for x in sequence if x), '') for sequence in sequences)
@@ -164,6 +172,7 @@ def s3join(s3_path, *rel_path):
     pr = urlparse(s3_path)
     pr = pr._replace(path=os.path.normpath(os.path.join(pr.path, *rel_path)))
     return urlunparse(pr)
+
 
 # TODO: Refactor to 'botocore' when it becomes mature.
 def convert_emr_object(obj):
@@ -288,7 +297,7 @@ def prepare_hadoop_conf(fn, safe=False):
         if pr.scheme in ["http", "https"]:
             with tempfile.NamedTemporaryFile(prefix="tmp_hadoop_conf_") as f:
                 try:
-                    urllib.urlretrieve(fn, f.name)
+                    urllib.request.urlretrieve(fn, f.name)
                 except Exception as e:
                     raise Exception("ERROR : failed to download '%s'" % fn)
                 return _prepare_hadoop_conf_file(f.name)
@@ -303,7 +312,7 @@ def prepare_hadoop_conf(fn, safe=False):
         try:
             return _prepare_hadoop_conf(fn)
         except Exception as e:
-            print "WARNING: got exception : %s" % e
+            print("WARNING: got exception : %s" % e)
             return None
     else:
         return _prepare_hadoop_conf(fn)
@@ -333,18 +342,18 @@ def preprocess_cluster_envs(base_envs, hadoop_type, cluster_def):
         elif isinstance(env_val, basestring):
             return env_val
         else:
-            print "WARNING: Invalid basic env_vars from cluster_def. Only string or dict."
+            print("WARNING: Invalid basic env_vars from cluster_def. Only string or dict.")
             return None
 
     if not os.path.isfile(cluster_def):
-        print "WARNING: Can not find definition for clusters, use default one."
+        print("WARNING: Can not find definition for clusters, use default one.")
         return base_envs
     cluster_defs = json_loads(open(cluster_def).read())
     if hadoop_type not in cluster_defs:
-        print "WARNING: Can not find definition of cluster '%s', use default one." % hadoop_type
+        print("WARNING: Can not find definition of cluster '%s', use default one." % hadoop_type)
         return base_envs
 
-    for ek, ev in cluster_defs[hadoop_type]["env_vars"].items():
+    for ek, ev in list(cluster_defs[hadoop_type]["env_vars"].items()):
         ev_new = _get_new_env(ek, ev)
         if ev_new:
             # print "%s=%s" % (ek, ev_new)
@@ -360,3 +369,11 @@ default_headers = {
     'cache-control': "no-cache"
 }
 
+
+class FileUtil(object):
+    @staticmethod
+    def createDir(filePath):
+        _isExists = os.path.exists(filePath)
+        if not _isExists:
+            os.makedirs(filePath)
+        return filePath

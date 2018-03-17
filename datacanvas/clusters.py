@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import range
+from builtins import object
 import os
 import subprocess
 import time
@@ -8,11 +14,12 @@ import boto.s3
 import boto.s3.key
 import boto.emr
 from boto.emr.step import HiveStep, JarStep, PigStep
-from itertools import izip
+from future.utils import with_metaclass
+
 from datacanvas.utils import cached_property, url_path_join, s3join, \
     s3parse, s3_upload, pprint_aws_obj, prepare_hadoop_conf, \
     preprocess_cluster_envs, percent_cb
-from urlparse import urlparse
+from urllib.parse import urlparse
 import abc
 import qds_sdk.qubole
 import qds_sdk.commands
@@ -20,9 +27,8 @@ import qds_sdk.cluster
 from datacanvas.ehc_client import EhcClient
 
 
-class BaseCluster(object):
+class BaseCluster(with_metaclass(abc.ABCMeta, object)):
     """A BaseCluster class define abstract methods for some type of cluster"""
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self):
         pass
@@ -152,10 +158,10 @@ class EmrBaseCluster(object):
             src_pr = s3parse(src_fn)
             k = bucket.get_key(src_pr.path)
 
-            print "Downloading '%s'" % src_fn
+            print("Downloading '%s'" % src_fn)
             dest_fn = os.path.join(dest_dir, os.path.basename(src_pr.path))
             k.get_contents_to_filename(dest_fn, cb=percent_cb, num_cb=1000)
-            print ""
+            print("")
 
         return dest_dir
 
@@ -168,7 +174,7 @@ class EmrBaseCluster(object):
                                 for i in self.s3_list_files(self.emr_step_log_filename(step_id))]
             intersection_files = set(log_files) & set(remote_log_files)
             if not intersection_files:
-                print "Seems logs are not ready on s3, retry..."
+                print("Seems logs are not ready on s3, retry...")
                 retry_count -= 1
                 time.sleep(retry_interval)
                 continue
@@ -177,18 +183,18 @@ class EmrBaseCluster(object):
                                     for i in self.s3_list_files(self.emr_step_log_filename(step_id))]
                 if set(remote_log_files) >= {"controller", "stdout", "stderr"}:
                     break
-                print "Fetching s3 logs..."
+                print("Fetching s3 logs...")
                 time.sleep(retry_interval)
             for log_file in log_files:
                 log_path = self.emr_step_log_filename(step_id, log_file)
-                print "==================================="
-                print "Dump EMR log file (step=%s): %s" % (step_id, log_file)
-                print "Log Path : %s" % log_path
-                print "==================================="
+                print("===================================")
+                print("Dump EMR log file (step=%s): %s" % (step_id, log_file))
+                print("Log Path : %s" % log_path)
+                print("===================================")
                 if self.s3_list_files(log_path):
-                    print self.emr_step_log(step_id, log_file=log_file)
+                    print(self.emr_step_log(step_id, log_file=log_file))
                 else:
-                    print "Log file does not exist"
+                    print("Log file does not exist")
             return
 
     def emr_execute_jar(self, job_name, s3_jar_path, jar_args, main_class="", action_on_failure='CONTINUE'):
@@ -215,9 +221,9 @@ class EmrBaseCluster(object):
 
     def emr_describe_steps(self, step_ids):
         for sid in step_ids:
-            print "==================================="
-            print "Summary for step: %s" % sid
-            print "==================================="
+            print("===================================")
+            print("Summary for step: %s" % sid)
+            print("===================================")
             step = self.emr_conn.describe_step(self.jobflow_id, sid)
             # print pprint_aws_obj(step)
 
@@ -226,8 +232,8 @@ class EmrBaseCluster(object):
             while True:
                 ret = self.emr_conn.describe_step(self.jobflow_id, step_id)
                 step_state = ret.status.state
-                print "Wait EMR jobflow step: jobflow_id='%s' step_id='%s' state='%s'" % \
-                      (self.jobflow_id, step_id, step_state)
+                print("Wait EMR jobflow step: jobflow_id='%s' step_id='%s' state='%s'" % \
+                      (self.jobflow_id, step_id, step_state))
                 if step_state in ["PENDING", "RUNNING", "CONTINUE"]:
                     time.sleep(10)
                     continue
@@ -257,7 +263,7 @@ class EmrBaseCluster(object):
                             for fn in filenames]
             remote_files = [s3join(remote_s3_path, fn_local) for fn_local in upload_files]
 
-        for fn_local, fn_remote in izip(upload_files, remote_files):
+        for fn_local, fn_remote in zip(upload_files, remote_files):
             s3_upload(bucket, fn_local, fn_remote)
 
         return remote_files
@@ -333,8 +339,8 @@ class EmrMixin(BaseCluster):
     def execute_jar(self, job_name, jar_path, jar_args=None, main_class="", *args, **kwargs):
         if not jar_args:
             jar_args = []
-        print "EMR Jar job: '%s'" % jar_path
-        print "           args = '%s'" % jar_args
+        print("EMR Jar job: '%s'" % jar_path)
+        print("           args = '%s'" % jar_args)
         step_ids = self.emr_execute_jar(job_name=job_name,
                                         s3_jar_path=jar_path,
                                         jar_args=jar_args,
@@ -486,8 +492,8 @@ class QuboleMixin(BaseCluster):
         while True:
             time.sleep(10)
             ret = qds_sdk.commands.Command.find(cmd_id)
-            print "Wait Qubole job: cluster_label='%s' step_id='%s' state='%s'" % \
-                  (qubole_cluster_label, cmd_id, ret.status)
+            print("Wait Qubole job: cluster_label='%s' step_id='%s' state='%s'" % \
+                  (qubole_cluster_label, cmd_id, ret.status))
             if qds_sdk.commands.Command.is_done(ret.status):
                 return qds_sdk.commands.Command.is_success(ret.status)
 
@@ -551,9 +557,9 @@ class EhcMixin(BaseCluster):
         if job_status != "succeeded":
             r = self.ehc_client.get_command_results(cmd_id)
 
-            print "--------------- EHC Logs ---------------"
-            print r['results']
-            print "----------------------------------------"
+            print("--------------- EHC Logs ---------------")
+            print(r['results'])
+            print("----------------------------------------")
         ret = 0 if job_status == "succeeded" else -1
 
         return ret
@@ -568,9 +574,9 @@ class EhcMixin(BaseCluster):
         if job_status != "succeeded":
             r = self.ehc_client.get_command_results(cmd_id)
 
-            print "--------------- EHC Logs ---------------"
-            print r['results']
-            print "----------------------------------------"
+            print("--------------- EHC Logs ---------------")
+            print(r['results'])
+            print("----------------------------------------")
         ret = 0 if job_status == "succeeded" else -1
 
         return ret
@@ -588,9 +594,9 @@ class EhcMixin(BaseCluster):
         if job_status != "succeeded":
             r = self.ehc_client.get_command_results(cmd_id)
             if verbose:
-                print "--------------- EHC Logs ---------------"
-                print r['results']
-                print "----------------------------------------"
+                print("--------------- EHC Logs ---------------")
+                print(r['results'])
+                print("----------------------------------------")
         ret = 0 if job_status == "succeeded" else -1
 
         if verbose:
@@ -631,7 +637,7 @@ class GenericHadoopCluster(BaseCluster):
             tmp_hadoop_conf_dir = prepare_hadoop_conf(cluster_kws["hadoop_conf"])
             if not tmp_hadoop_conf_dir:
                 default_hadoop_conf_dir = self._get_default_hadoop_conf_dir(**cluster_kws)
-                print "Use default hadoop_conf_dir '%s'" % default_hadoop_conf_dir
+                print("Use default hadoop_conf_dir '%s'" % default_hadoop_conf_dir)
                 self.hadoop_conf_dir = default_hadoop_conf_dir
             else:
                 self.hadoop_conf_dir = tmp_hadoop_conf_dir
