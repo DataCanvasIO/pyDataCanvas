@@ -56,4 +56,5 @@ target/
 
 # Jetbrains
 *.iml
+.idea/
 
