@@ -1,6 +1,8 @@
 pyDataCanvas
 ============
 
+[![Build Status](https://travis-ci.org/DataCanvasIO/pyDataCanvas.svg?branch=master)](https://travis-ci.org/DataCanvasIO/pyDataCanvas)
+
 Runtime support for DataCanvas
 
 Installation
