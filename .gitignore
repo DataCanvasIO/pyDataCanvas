@@ -58,3 +58,8 @@ target/
 *.iml
 .idea/
 
+# macOS
+.DS_Store
+
+# Test output
+test_output_*
