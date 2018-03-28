@@ -1,0 +1,29 @@
+{
+  "Name": "Predict",
+  "Param": {
+    "result_col_name": {
+      "Default": "predict",
+      "Type": "string"
+    }
+  },
+  "Version": "0.2",
+  "Description": "",
+  "Cmd": "python main.py",
+  "Input": {
+    "model": [
+      "meta"
+    ],
+    "X": [
+      "df"
+    ]
+  },
+  "Output": {
+    "Y": [
+      "df"
+    ]
+  },
+  "CategoryTags": [
+    "model"
+  ],
+  "languageType": "python"
+}

@@ -15,3 +15,9 @@ class Io(object):
         module = import_module(package + '.' + protocol_name)
         clazz = getattr(module, protocol_name.capitalize())
         return clazz(url)
+
+    def read_all(self):
+        raise NotImplementedError('Method read_all is not implemented for %s.' % self.__class__.__name__)
+
+    def write_all(self, content):
+        raise NotImplemented('Method write_all is not implemented for %s.' % self.__class__.__name__)

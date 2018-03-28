@@ -19,3 +19,7 @@ class File(Io):
         path = self._path
         with open(path, 'w') as f:
             return f.write(content)
+
+    def open(self, flags):
+        path = self._path
+        return open(path, flags)
