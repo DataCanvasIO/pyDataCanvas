@@ -10,4 +10,4 @@ def test_binary_file():
     o.schema().write_all(content_write)
     i = DataSet('binary', url)
     content_read = i.schema().read_all()
-    assert (content_read == content_write)
+    assert content_read == content_write
