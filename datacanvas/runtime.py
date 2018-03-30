@@ -1,31 +1,52 @@
 # -*- coding: utf-8 -*-
 
-"""
-A series of Runtime.
-"""
+from collections import namedtuple
 
-from __future__ import print_function
-
-from datacanvas.module import get_settings_from_file
-from datacanvas.utils import *
+from .dataset import DataSet
+from .dataset import Spec
 
 
 class Runtime(object):
-    def __init__(self, spec_filename="spec.json"):
-        self.settings = get_settings_from_file(spec_filename)
+    def __init__(self, spec_file_url):
+        module = DataSet(
+            schema_name='json',
+            url=spec_file_url,
+            spec=Spec.get('module_spec')
+        ).read()
+        self.__module = module
+        self.Inputs = None
+        self.Outputs = None
+        self.Params = None
 
-    def __repr__(self):
-        return str(self.settings)
+    def set_params(self, param_file_url):
+        module = self.__module
+        self.Params = DataSet(
+            schema_name='json',
+            url=param_file_url,
+            spec=Spec.get('param_spec', module.Param),
+        ).read()
 
-    @staticmethod
-    def cmd(args, shell=False, verbose=True):
-        if verbose:
-            print("Execute External Command : '%s'" % args)
-        ret = subprocess.call(args, shell=shell, env=os.environ.copy())
-        if verbose:
-            print("Exit with exit code = %d" % ret)
-        return ret
+    def set_inputs(self, args):
+        module = self.__module
+        if not all(k in args for k in module.Input.keys()):
+            raise ValueError("Missing input parameters")
+        Inputs = namedtuple('Inputs', module.Input.keys())
+        for k, v in module.Input.items():
+            print(k)
+            print(v)
+        self.Inputs = Inputs(**{k: DataSet(
+            schema_name=v['schema'],
+            url=args[k],
+            spec=v['spec'],
+        ) for k, v in module.Input.items()})
 
-    @staticmethod
-    def exit(ret_code):
-        sys.exit(ret_code)
+    def set_outputs(self, args):
+        module = self.__module
+        if not all(k in args for k in module.Output.keys()):
+            raise ValueError("Missing output parameters")
+        Outputs = namedtuple('Outputs', module.Output.keys())
+        self.Outputs = Outputs(**{k: DataSet(
+            schema_name=v['schema'],
+            url=args[k],
+            spec=v['spec'],
+        ) for k, v in module.Output.items()})

@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import os
 import functools
+import os
+import sys
+
 from .runtime import Runtime
 from .validate import Validator
 
@@ -15,17 +17,23 @@ class DataCanvas(object):
         if is_validate == 'true':
             Validator.validate()
 
-    def basic_runtime(self, spec_json="spec.json"):
+    def runtime(self, spec_file_url="spec.json", param_file_url="param.json", args=None):
+        if not args:
+            args = dict(arg.split("=") for arg in sys.argv[1:])
+
         def decorator(method):
-            rt = Runtime(spec_filename=spec_json)
-            params = rt.settings.Param
-            inputs = rt.settings.Input
-            outputs = rt.settings.Output
+            runtime = Runtime(spec_file_url)
+            runtime.set_params(param_file_url)
+            runtime.set_inputs(args)
+            runtime.set_outputs(args)
+            params = runtime.Params
+            inputs = runtime.Inputs
+            outputs = runtime.Outputs
 
             @functools.wraps(method)
-            def wrapper(_rt=rt, _params=params, _inputs=inputs, _outputs=outputs):
-                print(rt)
-                method(_rt, _params, _inputs, _outputs)
+            def wrapper(_runtime=runtime, _params=params, _inputs=inputs, _outputs=outputs):
+                print(_runtime)
+                method(_runtime, _params, _inputs, _outputs)
 
             self._graph.append(wrapper)
             return wrapper

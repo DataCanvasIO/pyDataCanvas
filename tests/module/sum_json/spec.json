@@ -1,0 +1,20 @@
+{
+  "Name": "SumJson",
+  "Description": "Sum up numbers from a json array, save to a text file",
+  "Version": "1.0",
+  "Param": {
+  },
+  "Input": {
+    "array": {
+      "schema": "json",
+      "spec": {}
+    }
+  },
+  "Output": {
+    "result": {
+      "schema": "text",
+      "spec": {}
+    }
+  },
+  "Cmd": "python main.py"
+}
