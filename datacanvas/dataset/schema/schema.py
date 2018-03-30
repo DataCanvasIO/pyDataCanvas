@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from importlib import import_module
 
-from ..common import to_class_name
+from ..common import get_module_class
 
 
 class Schema(object):
@@ -13,9 +12,7 @@ class Schema(object):
 
     @staticmethod
     def get(schema_name, io, spec=None):
-        package = sys.modules[__name__].__package__
-        module = import_module(package + '.' + schema_name)
-        clazz = getattr(module, to_class_name(schema_name))
+        clazz = get_module_class(schema_name, sys.modules[__name__].__package__)
         return clazz(io, spec)
 
     def read(self):

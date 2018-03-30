@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from importlib import import_module
 
-from ..common import to_class_name
+from ..common import get_module_class
 
 
 class Io(object):
@@ -13,9 +12,7 @@ class Io(object):
         index = url.find(':')
         if index >= 0:
             protocol_name = url[0:index]
-        package = sys.modules[__name__].__package__
-        module = import_module(package + '.' + protocol_name)
-        clazz = getattr(module, to_class_name(protocol_name))
+        clazz = get_module_class(protocol_name, sys.modules[__name__].__package__)
         return clazz(url)
 
     def read(self):

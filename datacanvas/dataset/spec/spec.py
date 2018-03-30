@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from importlib import import_module
 
-from ..common import to_class_name
+from ..common import get_module_class
 
 
 class Spec:
     @staticmethod
     def get(spec_type, *args):
-        package = sys.modules[__name__].__package__
-        module = import_module(package + '.' + spec_type)
-        clazz = getattr(module, to_class_name(spec_type))
+        clazz = get_module_class(spec_type, sys.modules[__name__].__package__)
         return clazz(*args)
 
     def input(self, content):

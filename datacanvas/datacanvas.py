@@ -32,7 +32,6 @@ class DataCanvas(object):
 
             @functools.wraps(method)
             def wrapper(_runtime=runtime, _params=params, _inputs=inputs, _outputs=outputs):
-                print(_runtime)
                 method(_runtime, _params, _inputs, _outputs)
 
             self._graph.append(wrapper)
