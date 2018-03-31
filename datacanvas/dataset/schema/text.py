@@ -4,4 +4,5 @@ from .schema import Schema
 
 
 class Text(Schema):
-    pass
+    def __init__(self):
+        self.mode = 't'

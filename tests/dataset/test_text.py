@@ -4,17 +4,17 @@ from datacanvas.dataset import DataSet
 
 
 def test_text_file():
-    url = 'file://test_output_text_file.bin'
+    url = 'text:file://test_output_text_file.bin'
     content_write = 'test_text_file'
-    o = DataSet('text', url)
+    o = DataSet(url)
     o.write(content_write)
-    i = DataSet('text', url)
+    i = DataSet(url)
     content_read = i.read()
     assert content_read == content_write
 
 
 def test_text_here():
-    url = 'here://just a test'
-    i = DataSet('text', url)
+    url = 'text:here://just a test'
+    i = DataSet(url)
     content_read = i.read()
     assert content_read == 'just a test'

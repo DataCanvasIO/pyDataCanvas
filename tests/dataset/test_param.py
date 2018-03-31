@@ -4,12 +4,12 @@ from datacanvas.dataset import DataSet, Spec
 
 
 def test_param_here():
-    url = 'here://{ }'
+    url = 'json:here://{ }'
     spec = Spec.get('param_spec', '{ "var1": { "Type": "string", "Default": "xixihaha" } }')
-    i = DataSet('json', url, spec)
+    i = DataSet(url, spec)
     content_read = i.read()
     assert content_read.var1 == 'xixihaha'
-    url = 'here://{ "var1": "hello" }'
-    i = DataSet('json', url, spec)
+    url = 'json:here://{ "var1": "hello" }'
+    i = DataSet(url, spec)
     content_read = i.read()
     assert content_read.var1 == 'hello'

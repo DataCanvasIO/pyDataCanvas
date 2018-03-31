@@ -1,0 +1,33 @@
+{
+  "Name": "LogisticRegression",
+  "RuntimeId": "4",
+  "Param": {
+    "model_name": {
+      "Default": "lr-0.1.model",
+      "Type": "string"
+    },
+    "CV": {
+      "Default": "3",
+      "Type": "int"
+    },
+    "metrics": {
+      "Default": "\"accuracy\",\"f1_micro\",\"f1_macro\"",
+      "Type": "string"
+    }
+  },
+  "Version": "1.5",
+  "Description": "",
+  "Cmd": "python main.py",
+  "Input": {
+    "X": {
+    },
+    "Y": {
+    }
+  },
+  "Output": {
+    "model_meta": {
+    },
+    "model": {
+    }
+  }
+}

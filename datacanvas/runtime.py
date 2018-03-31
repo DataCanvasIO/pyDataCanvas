@@ -9,7 +9,6 @@ from .dataset import Spec
 class Runtime(object):
     def __init__(self, spec_file_url):
         module = DataSet(
-            schema_name='json',
             url=spec_file_url,
             spec=Spec.get('module_spec')
         ).read()
@@ -21,7 +20,6 @@ class Runtime(object):
     def set_params(self, param_file_url):
         module = self.__module
         self.Params = DataSet(
-            schema_name='json',
             url=param_file_url,
             spec=Spec.get('param_spec', module.Param),
         ).read()
@@ -31,22 +29,19 @@ class Runtime(object):
         if not all(k in args for k in module.Input.keys()):
             raise ValueError("Missing input parameters")
         Inputs = namedtuple('Inputs', module.Input.keys())
+        d = {}
         for k, v in module.Input.items():
-            print(k)
-            print(v)
-        self.Inputs = Inputs(**{k: DataSet(
-            schema_name=v['schema'],
-            url=args[k],
-            spec=v['spec'],
-        ) for k, v in module.Input.items()})
+            spec = None
+            d[k] = DataSet(url=args[k], spec=spec)
+        self.Inputs = Inputs(**d)
 
     def set_outputs(self, args):
         module = self.__module
         if not all(k in args for k in module.Output.keys()):
             raise ValueError("Missing output parameters")
         Outputs = namedtuple('Outputs', module.Output.keys())
-        self.Outputs = Outputs(**{k: DataSet(
-            schema_name=v['schema'],
-            url=args[k],
-            spec=v['spec'],
-        ) for k, v in module.Output.items()})
+        d = {}
+        for k, v in module.Output.items():
+            spec = None
+            d[k] = DataSet(url=args[k], spec=spec)
+        self.Outputs = Outputs(**d)

@@ -2,9 +2,10 @@
 
 
 def main(params, inputs, outputs):
-    array = inputs.array
+    array = inputs.array.read()
+    print(array)
     result = outputs.result
     sum = 0
-    for i in array.read():
+    for i in array:
         sum += i
     result.write(str(sum))

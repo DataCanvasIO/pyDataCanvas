@@ -6,14 +6,10 @@
   },
   "Input": {
     "array": {
-      "schema": "json",
-      "spec": {}
     }
   },
   "Output": {
     "result": {
-      "schema": "text",
-      "spec": {}
     }
   },
   "Cmd": "python main.py"
