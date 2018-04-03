@@ -3,6 +3,7 @@
 import os
 
 from datacanvas import DataCanvas
+from datacanvas.dataset import DataSet
 
 dc = DataCanvas(__name__)
 
@@ -30,3 +31,5 @@ def main(runtime, params, inputs, outputs):
 
 def test_main():
     dc.run()
+    result = DataSet(output_model_meta_url).read()
+    assert result['model_name'] == 'test_lr'

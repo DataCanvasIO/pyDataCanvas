@@ -23,5 +23,5 @@ def main(runtime, params, inputs, outputs):
 
 def test_main():
     dc.run()
-    result = DataSet(output_result_url)
-    assert result.read() == '25'
+    result = DataSet(output_result_url).read()
+    assert result == '25'

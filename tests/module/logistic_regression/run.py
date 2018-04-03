@@ -19,7 +19,7 @@ def main(params, inputs, outputs):
 
     lr = LogisticRegression()
     lr.fit(df_x, df_y)
-    print(lr.coef_)
+    print("\n[coef_]\n" % lr.coef_)
     outputs.model.write(lr)
 
     # Cross Validate
@@ -29,12 +29,11 @@ def main(params, inputs, outputs):
     v = [list(v) for v in scores.values()]
     scores = dict(zip(k, v))
 
-    lr_meta = \
-        {
-            "model_name": model_name,
-            "model_type": "sklearn-%s" % sklearn.__version__,
-            "pkg_depend": "from sklearn.linear_model import LogisticRegression",
-            "metrics": scores
-        }
+    lr_meta = {
+        "model_name": model_name,
+        "model_type": "sklearn-%s" % sklearn.__version__,
+        "pkg_depend": "from sklearn.linear_model import LogisticRegression",
+        "metrics": scores
+    }
     print("\n[lr meta]\n%s" % lr_meta)
     outputs.model_meta.write(lr_meta)
