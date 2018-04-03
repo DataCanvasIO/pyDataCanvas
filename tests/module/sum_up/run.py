@@ -3,7 +3,6 @@
 
 def main(params, inputs, outputs):
     array = inputs.array.read()
-    print(array)
     result = outputs.result
     sum = 0
     for i in array:

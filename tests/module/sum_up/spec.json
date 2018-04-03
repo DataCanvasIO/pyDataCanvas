@@ -1,6 +1,6 @@
 {
-  "Name": "SumJson",
-  "Description": "Sum up numbers from a json array, save to a text file",
+  "Name": "SumUp",
+  "Description": "Sum up numbers from an array, save to a text file",
   "Version": "1.0",
   "Param": {
   },
