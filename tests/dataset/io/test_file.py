@@ -13,8 +13,11 @@ def test_text_file():
     assert content_read == content_write
 
 
-def test_text_here():
-    url = 'text:here://just a test'
+def test_binary_file():
+    url = 'binary:file://test_output_binary_file.bin'
+    content_write = b'test_binary_file'
+    o = DataSet(url)
+    o.write(content_write)
     i = DataSet(url)
     content_read = i.read()
-    assert content_read == 'just a test'
+    assert content_read == content_write

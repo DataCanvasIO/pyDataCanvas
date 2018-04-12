@@ -1,21 +1,25 @@
 # -*- coding: utf-8 -*-
 
+from urllib.parse import urlsplit
+
+from hdfs.client import InsecureClient
+
 from .io import Io
 
 
-class File(Io):
+class Webhdfs(Io):
     def __init__(self, url, schema):
-        if url.startswith('file://'):
-            self.__path = url[7:]
-        else:
-            self.__path = url
+        urls = urlsplit(url)
+        assert urls.scheme == 'webhdfs'
+        self.__client = InsecureClient('http://' + urls.netloc, user=urls.username)
+        self.__path = urls.path
         self.__schema = schema
 
     def read(self):
+        client = self.__client
         path = self.__path
         schema = self.__schema
-        mode = 'r' + schema.mode
-        with open(path, mode) as f:
+        with client.read(path) as f:
             result = schema.load(f)
             if result == NotImplemented:
                 content = f.read()
@@ -23,10 +27,11 @@ class File(Io):
         return result
 
     def write(self, content):
+        client = self.__client
         path = self.__path
         schema = self.__schema
-        mode = 'w' + schema.mode
-        with open(path, mode) as f:
+        content = bytes(content, 'utf-8')
+        with client.write(path) as f:
             result = schema.dump(content, f)
             if result == NotImplemented:
                 content = schema.dumps(content)

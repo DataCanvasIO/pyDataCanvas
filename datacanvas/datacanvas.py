@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import functools
-import os
 import sys
 
 from .runtime import Runtime
-from .validate import Validator
 
 
 class DataCanvas(object):
@@ -13,9 +11,6 @@ class DataCanvas(object):
         self._name = name
         self._graph = []
         self._rt = None
-        is_validate = os.environ.get("isValidate")
-        if is_validate == 'true':
-            Validator.validate()
 
     def runtime(self, spec_file_url="spec.json", param_file_url="param.json", args=None):
         if not args:
