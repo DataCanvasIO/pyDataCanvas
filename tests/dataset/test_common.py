@@ -11,5 +11,9 @@ def test_to_class_name():
 
 
 def test_get_module_class():
+    clazz = get_module_class('dir1.dir2.for_test_common', __name__)
+    obj = clazz()
+    assert isinstance(obj, clazz)
+
     with pytest.raises(ValueError):
         get_module_class('test_common', __name__)
