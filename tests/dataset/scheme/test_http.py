@@ -23,8 +23,8 @@ def test_json_http():
     if not p.is_alive():
         assert False
 
-    url = 'json:http://localhost:5000'
-    i = DataSet(url)
-    content_read = i.read()
+    url = 'http://localhost:5000'
+    i = DataSet(url, 'json')
+    content_read = i.get_raw()
     assert content_read['hello'] == 'world'
     p.terminate()

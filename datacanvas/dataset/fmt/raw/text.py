@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from .schema import Schema
+from datacanvas.dataset.fmt.fmt import Fmt
 
 
-class Text(Schema):
+class Text(Fmt):
     def __init__(self):
         self.mode = 't'
 

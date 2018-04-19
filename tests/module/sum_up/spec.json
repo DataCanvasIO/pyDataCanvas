@@ -5,12 +5,14 @@
   "Param": {
   },
   "Input": {
-    "array": {
-    }
+    "array": [
+      "any"
+    ]
   },
   "Output": {
-    "result": {
-    }
+    "result": [
+      "any"
+    ]
   },
   "Cmd": "python main.py"
 }

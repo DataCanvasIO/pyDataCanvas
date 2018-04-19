@@ -1,34 +1,34 @@
 # -*- coding: utf-8 -*-
 
-from .io import Io
+from .scheme import Scheme
 
 
-class File(Io):
-    def __init__(self, url, schema):
+class File(Scheme):
+    def __init__(self, url, fmt):
         if url.startswith('file://'):
             self.__path = url[7:]
         else:
             self.__path = url
-        self.__schema = schema
+        self.__fmt = fmt
 
     def read(self):
         path = self.__path
-        schema = self.__schema
-        mode = 'r' + schema.mode
+        fmt = self.__fmt
+        mode = 'r' + fmt.mode
         with open(path, mode) as f:
-            result = schema.load(f)
+            result = fmt.load(f)
             if result == NotImplemented:
                 content = f.read()
-                result = schema.loads(content)
+                result = fmt.loads(content)
         return result
 
     def write(self, content):
         path = self.__path
-        schema = self.__schema
-        mode = 'w' + schema.mode
+        fmt = self.__fmt
+        mode = 'w' + fmt.mode
         with open(path, mode) as f:
-            result = schema.dump(content, f)
+            result = fmt.dump(content, f)
             if result == NotImplemented:
-                content = schema.dumps(content)
+                content = fmt.dumps(content)
                 result = f.write(content)
         return result

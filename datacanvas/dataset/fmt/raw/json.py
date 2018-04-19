@@ -2,10 +2,10 @@
 
 import json
 
-from .schema import Schema
+from datacanvas.dataset.fmt.fmt import Fmt
 
 
-class Json(Schema):
+class Json(Fmt):
     def __init__(self):
         self.mode = 't'
 

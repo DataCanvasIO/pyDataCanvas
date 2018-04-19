@@ -8,10 +8,7 @@ from .dataset import Spec
 
 class Runtime(object):
     def __init__(self, spec_file_url):
-        module = DataSet(
-            url=spec_file_url,
-            spec=Spec.get('module_spec')
-        ).read()
+        module = DataSet(spec_file_url, 'json', Spec.get('module_spec')).get_raw()
         self.__module = module
         self.Inputs = None
         self.Outputs = None
@@ -19,10 +16,7 @@ class Runtime(object):
 
     def set_params(self, param_file_url):
         module = self.__module
-        self.Params = DataSet(
-            url=param_file_url,
-            spec=Spec.get('param_spec', module.Param),
-        ).read()
+        self.Params = DataSet(param_file_url, 'json', Spec.get('param_spec', module.Param)).get_raw()
 
     def set_inputs(self, args):
         module = self.__module
@@ -31,8 +25,8 @@ class Runtime(object):
         Inputs = namedtuple('Inputs', module.Input.keys())
         d = {}
         for k, v in module.Input.items():
-            spec = None
-            d[k] = DataSet(url=args[k], spec=spec)
+            meta = DataSet(args[k], 'json', Spec.get('meta_spec')).get_raw()
+            d[k] = DataSet(meta.url, meta.format)
         self.Inputs = Inputs(**d)
 
     def set_outputs(self, args):
@@ -42,6 +36,6 @@ class Runtime(object):
         Outputs = namedtuple('Outputs', module.Output.keys())
         d = {}
         for k, v in module.Output.items():
-            spec = None
-            d[k] = DataSet(url=args[k], spec=spec)
+            meta = DataSet(args[k], 'json', Spec.get('meta_spec')).get_raw()
+            d[k] = DataSet(meta.url, meta.format)
         self.Outputs = Outputs(**d)

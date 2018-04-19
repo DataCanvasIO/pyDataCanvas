@@ -2,8 +2,8 @@
 
 from __future__ import absolute_import
 
-from .io import Io
+from .fmt import Fmt
 
 __all__ = [
-    'Io',
+    'Fmt',
 ]

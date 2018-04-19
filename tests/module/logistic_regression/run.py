@@ -12,15 +12,15 @@ def main(params, inputs, outputs):
     # metric = params.metric
     metric = eval("[%s]" % params.metrics)
 
-    df_x = inputs.X.read()
-    df_y = inputs.Y.read()
+    df_x = inputs.X.get_raw()
+    df_y = inputs.Y.get_raw()
     le = LabelEncoder()
     enc_df_y = le.fit_transform(df_y)
 
     lr = LogisticRegression()
     lr.fit(df_x, df_y)
     print("\n[coef_]\n" % lr.coef_)
-    outputs.model.write(lr)
+    outputs.model.put_raw(lr)
 
     # Cross Validate
     scores = cross_validate(lr, df_x, enc_df_y, cv=cv, scoring=metric, return_train_score=False)
@@ -36,4 +36,4 @@ def main(params, inputs, outputs):
         "metrics": scores
     }
     print("\n[lr meta]\n%s" % lr_meta)
-    outputs.model_meta.write(lr_meta)
+    outputs.model_meta.put_raw(lr_meta)

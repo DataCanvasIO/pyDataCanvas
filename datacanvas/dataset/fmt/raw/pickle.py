@@ -2,10 +2,10 @@
 
 import pickle
 
-from .schema import Schema
+from datacanvas.dataset.fmt.fmt import Fmt
 
 
-class Pickle(Schema):
+class Pickle(Fmt):
     def __init__(self):
         self.mode = 'b'
 

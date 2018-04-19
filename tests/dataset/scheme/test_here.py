@@ -5,19 +5,19 @@ import pytest
 from datacanvas.dataset import DataSet
 
 
-def test_text_here():
+def test_raw_text_here():
     content = 'I am here text'
-    url = 'text:here://' + content
-    i = DataSet(url)
-    content_read = i.read()
+    url = 'here://' + content
+    i = DataSet(url, 'text')
+    content_read = i.get_raw()
     assert content_read == content
-    o = DataSet(url)
+    o = DataSet(url, 'text')
     with pytest.raises(NotImplementedError):
-        o.write(content)
+        o.put_raw(content)
 
 
-def test_binary_here():
+def test_raw_binary_here():
     content = 'I am here text'
-    url = 'binary:here://' + content
+    url = 'here://' + content
     with pytest.raises(ValueError):
         DataSet(url)

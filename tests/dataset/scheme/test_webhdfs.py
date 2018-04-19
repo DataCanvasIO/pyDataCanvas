@@ -9,8 +9,8 @@ def test_webhdfs():
     msg = '{ "hello": "world" }'
     user = getuser()
     url = 'webhdfs://' + user + '@localhost:50070/user/' + user + '/test_output'
-    o = DataSet('text:' + url)
+    o = DataSet(url, 'text')
     o.write(msg)
-    i = DataSet('json:' + url)
-    content_read = i.read()
+    i = DataSet(url, 'json')
+    content_read = i.get_raw()
     assert content_read['hello'] == 'world'

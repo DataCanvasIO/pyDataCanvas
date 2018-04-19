@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
 
 from urllib.request import urlopen
-from .io import Io
+
+from .scheme import Scheme
 
 
-class Http(Io):
-    def __init__(self, url, schema):
+class Http(Scheme):
+    def __init__(self, url, fmt):
         assert url.startswith('http://')
         self.__url = url
-        self.__schema = schema
+        self.__fmt = fmt
 
     def read(self):
         url = self.__url
-        schema = self.__schema
+        fmt = self.__fmt
         content = urlopen(url).read()
-        return schema.loads(content)
+        return fmt.loads(content)
 
     def write(self, content):
         url = self.__url
-        schema = self.__schema
-        content = schema.dumps(content)
+        fmt = self.__fmt
+        content = fmt.dumps(content)
         return urlopen(url).write(content)

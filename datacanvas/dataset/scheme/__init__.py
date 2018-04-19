@@ -2,8 +2,8 @@
 
 from __future__ import absolute_import
 
-from .schema import Schema
+from .scheme import Scheme
 
 __all__ = [
-    'Schema',
+    'Scheme',
 ]

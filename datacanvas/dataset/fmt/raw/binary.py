@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from .schema import Schema
+from datacanvas.dataset.fmt.fmt import Fmt
 
 
-class Binary(Schema):
+class Binary(Fmt):
     def __init__(self):
         self.mode = 'b'
 

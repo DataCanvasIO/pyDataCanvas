@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 
-from .io import Io
+from .scheme import Scheme
 
 
-class Here(Io):
-    def __init__(self, url, schema):
+class Here(Scheme):
+    def __init__(self, url, fmt):
         assert url.startswith('here://')
-        if schema.mode == 'b':
+        if fmt.mode == 'b':
             raise ValueError('Only text mode is supported for "%s".' % self.__class__.__name__)
         self.__content = url[7:]
-        self.__schema = schema
+        self.__fmt = fmt
 
     def read(self):
-        schema = self.__schema
-        return schema.loads(self.__content)
+        fmt = self.__fmt
+        return fmt.loads(self.__content)
 
     def write(self, content):
-        Io.write(self, content)
+        Scheme.write(self, content)

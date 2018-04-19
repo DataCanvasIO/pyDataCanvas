@@ -1,24 +1,43 @@
 # -*- coding: utf-8 -*-
 
-from .io import Io
+from .scheme import Scheme
 
 
 class DataSet(object):
-    def __init__(self, url, spec=None):
-        self.__io = Io.get(url)
+    def __init__(self, url, fmt, spec=None):
+        self.__url = url
+        self.__fmt = fmt
         self.__spec = spec
 
-    def read(self):
-        io = self.__io
+    def __read(self, fmt):
+        url = self.__url
+        scheme = Scheme.get(url, fmt)
         spec = self.__spec
-        content = io.read()
+        content = scheme.read()
         if spec:
             content = spec.input(content)
         return content
 
-    def write(self, content):
-        io = self.__io
+    def __write(self, content, fmt):
+        url = self.__url
+        scheme = Scheme.get(url, fmt)
         spec = self.__spec
         if spec:
             content = spec.output(content)
-        return io.write(content)
+        return scheme.write(content)
+
+    def get_raw(self):
+        fmt = self.__fmt
+        return self.__read('raw.' + fmt)
+
+    def get_dataframe(self, engine='pandas'):
+        fmt = self.__fmt
+        return self.__read(engine + '.' + fmt)
+
+    def put_raw(self, content):
+        fmt = self.__fmt
+        return self.__write(content, 'raw.' + fmt)
+
+    def put_dataframe(self, content, engine='pandas'):
+        fmt = self.__fmt
+        return self.__read(content, engine + '.' + fmt)
