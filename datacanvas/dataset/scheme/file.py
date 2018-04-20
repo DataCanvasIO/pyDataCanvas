@@ -17,7 +17,7 @@ class File(Scheme):
         mode = 'r' + fmt.mode
         with open(path, mode) as f:
             result = fmt.load(f)
-            if result == NotImplemented:
+            if result is NotImplemented:
                 content = f.read()
                 result = fmt.loads(content)
         return result
@@ -28,7 +28,7 @@ class File(Scheme):
         mode = 'w' + fmt.mode
         with open(path, mode) as f:
             result = fmt.dump(content, f)
-            if result == NotImplemented:
+            if result is NotImplemented:
                 content = fmt.dumps(content)
                 result = f.write(content)
         return result

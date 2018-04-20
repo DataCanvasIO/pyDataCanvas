@@ -40,4 +40,4 @@ class DataSet(object):
 
     def put_dataframe(self, content, engine='pandas'):
         fmt = self.__fmt
-        return self.__read(content, engine + '.' + fmt)
+        return self.__write(content, engine + '.' + fmt)

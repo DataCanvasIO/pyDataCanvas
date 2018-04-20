@@ -19,5 +19,6 @@ def test_raw_text_here():
 def test_raw_binary_here():
     content = 'I am here text'
     url = 'here://' + content
+    i = DataSet(url, 'binary')
     with pytest.raises(ValueError):
-        DataSet(url)
+        i.get_raw()
