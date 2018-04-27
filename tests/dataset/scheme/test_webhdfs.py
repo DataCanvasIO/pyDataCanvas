@@ -11,12 +11,11 @@ def test_webhdfs():
     user = getuser()
     url = 'webhdfs://' + user + '@localhost:50070/user/' + user + '/test_output'
     try:
-        o = DataSet(url, 'text')
+        o = DataSet(url=url, format='text')
         o.put_raw(msg)
-        i = DataSet(url, 'json')
+        i = DataSet(url=url, fromat='json')
         content_read = i.get_raw()
         assert content_read['hello'] == 'world'
     finally:
         cmd = 'hadoop fs -rm /user/' + user + '/test_output'
-        print(cmd)
         os.system(cmd)

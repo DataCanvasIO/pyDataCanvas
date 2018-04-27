@@ -18,18 +18,18 @@ output_model_meta_url = my_dir + '/test_output_model_meta.json'
     spec_file_url=my_dir + '/spec.json',
     param_file_url=my_dir + '/param.json',
     args={
-        'X': 'here://{"url":"' + input_X_url + '", "format":"json"}',
-        'Y': 'here://{"url":"' + input_Y_url + '","format":"json"}',
-        'model': 'here://{"url":"' + output_model_url + '", "format":"pickle"}',
-        'model_meta': 'here://{"url":"' + output_model_meta_url + '", "format":"json"}',
+        'X': {'url': input_X_url, 'format': 'json'},
+        'Y': {'url': input_Y_url, 'format': 'json'},
+        'model': {'url': output_model_url, 'format': 'pickle'},
+        'model_meta': {'url': output_model_meta_url, 'format': 'json'},
     },
 )
-def main(runtime, params, inputs, outputs):
+def task(runtime, params, inputs, outputs):
     from .run import main
     main(params, inputs, outputs)
 
 
 def test_main():
     dc.run()
-    result = DataSet(output_model_meta_url, 'json').get_raw()
+    result = DataSet(url=output_model_meta_url, format='json').get_raw()
     assert result['model_name'] == 'test_lr'

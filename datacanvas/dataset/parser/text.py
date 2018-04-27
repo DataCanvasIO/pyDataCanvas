@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from datacanvas.dataset.fmt.fmt import Fmt
+from .parser import Parser
 
 
-class Text(Fmt):
+class Text(Parser):
     def __init__(self):
         self.mode = 't'
 

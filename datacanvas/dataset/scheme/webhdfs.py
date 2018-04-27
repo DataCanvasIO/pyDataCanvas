@@ -5,35 +5,42 @@ from urllib.parse import urlsplit
 from hdfs.client import InsecureClient
 
 from .scheme import Scheme
+from ..parser import Parser
 
 
 class Webhdfs(Scheme):
-    def __init__(self, url, fmt):
+    def __init__(self, spec):
+        url = spec['url']
         urls = urlsplit(url)
         assert urls.scheme == 'webhdfs'
-        self.__client = InsecureClient('http://' + urls.netloc, user=urls.username)
+        if 'user' in spec:
+            user = spec['user']
+        else:
+            user = urls.username
+        self.__client = InsecureClient('http://' + urls.netloc, user=user)
         self.__path = urls.path
-        self.__fmt = fmt
+        parser = Parser.get(spec['parser'])
+        self.__parser = parser
 
     def read(self):
         client = self.__client
         path = self.__path
-        fmt = self.__fmt
+        parser = self.__parser
         with client.read(path) as f:
-            result = fmt.load(f)
+            result = parser.load(f)
             if result == NotImplemented:
                 content = f.read()
-                result = fmt.loads(content)
+                result = parser.loads(content)
         return result
 
     def write(self, content):
         client = self.__client
         path = self.__path
-        fmt = self.__fmt
+        parser = self.__parser
         content = bytes(content, 'utf-8')
         with client.write(path) as f:
-            result = fmt.dump(content, f)
+            result = parser.dump(content, f)
             if result == NotImplemented:
-                content = fmt.dumps(content)
+                content = parser.dumps(content)
                 result = f.write(content)
         return result

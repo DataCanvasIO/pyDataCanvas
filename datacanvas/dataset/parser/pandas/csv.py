@@ -2,21 +2,21 @@
 
 import pandas as pd
 
-from datacanvas.dataset.fmt.fmt import Fmt
+from ..parser import Parser
 
 
-class Json(Fmt):
+class Csv(Parser):
     def __init__(self):
         self.mode = 't'
 
     def loads(self, content):
-        return pd.read_json(content)
+        return pd.read_csv(content)
 
     def dumps(self, content):
-        return content.to_json()
+        return content.to_csv()
 
     def load(self, f):
-        return pd.read_json(f)
+        return pd.read_csv(f)
 
     def dump(self, content, f):
-        return content.to_json(f)
+        return content.to_csv(f)

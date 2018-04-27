@@ -2,8 +2,8 @@
 
 from __future__ import absolute_import
 
-from .fmt import Fmt
+from .parser import Parser
 
 __all__ = [
-    'Fmt',
+    'Parser',
 ]

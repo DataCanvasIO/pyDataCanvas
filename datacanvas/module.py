@@ -9,7 +9,7 @@ import json
 from collections import namedtuple
 from datacanvas.io_types import load_io_obj, BaseIO
 from datacanvas.utils import mask_key
-from .dataset import DataSet
+from .dataset import Dataset
 
 
 class Input(str):
@@ -261,7 +261,7 @@ def get_settings(spec_json):
     # Load parameters
     param_json = get_json_file(os.getenv("ZETRT"))
 
-    param = DataSet('json', os.getenv('ZETRT', 'file://param.json'))
+    param = Dataset('json', os.getenv('ZETRT', 'file://param.json'))
 
     param = param_builder(spec_json['Param'], param_json['PARAM'])
     json_input, json_output = input_output_builder(spec_json['Input'], spec_json['Output'])

@@ -3,22 +3,25 @@
 from urllib.request import urlopen
 
 from .scheme import Scheme
+from ..parser import Parser
 
 
 class Http(Scheme):
-    def __init__(self, url, fmt):
+    def __init__(self, spec):
+        url = spec['url']
         assert url.startswith('http://')
         self.__url = url
-        self.__fmt = fmt
+        parser = Parser.get(spec['parser'])
+        self.__parser = parser
 
     def read(self):
         url = self.__url
-        fmt = self.__fmt
+        parser = self.__parser
         content = urlopen(url).read()
-        return fmt.loads(content)
+        return parser.loads(content)
 
     def write(self, content):
         url = self.__url
-        fmt = self.__fmt
-        content = fmt.dumps(content)
+        parser = self.__parser
+        content = parser.dumps(content)
         return urlopen(url).write(content)

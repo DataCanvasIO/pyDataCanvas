@@ -1,34 +1,39 @@
 # -*- coding: utf-8 -*-
 
 from .scheme import Scheme
+from ..parser import Parser
 
 
 class File(Scheme):
-    def __init__(self, url, fmt):
+    def __init__(self, spec):
+        url = spec['url']
         if url.startswith('file://'):
             self.__path = url[7:]
+        elif url.startswith('file:'):
+            self.__path = url[5:]
         else:
             self.__path = url
-        self.__fmt = fmt
+        parser = Parser.get(spec['parser'])
+        self.__parser = parser
 
     def read(self):
         path = self.__path
-        fmt = self.__fmt
-        mode = 'r' + fmt.mode
+        parser = self.__parser
+        mode = 'r' + parser.mode
         with open(path, mode) as f:
-            result = fmt.load(f)
+            result = parser.load(f)
             if result is NotImplemented:
                 content = f.read()
-                result = fmt.loads(content)
+                result = parser.loads(content)
         return result
 
     def write(self, content):
         path = self.__path
-        fmt = self.__fmt
-        mode = 'w' + fmt.mode
+        parser = self.__parser
+        mode = 'w' + parser.mode
         with open(path, mode) as f:
-            result = fmt.dump(content, f)
+            result = parser.dump(content, f)
             if result is NotImplemented:
-                content = fmt.dumps(content)
+                content = parser.dumps(content)
                 result = f.write(content)
         return result

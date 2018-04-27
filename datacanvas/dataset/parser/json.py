@@ -2,10 +2,10 @@
 
 import json
 
-from datacanvas.dataset.fmt.fmt import Fmt
+from .parser import Parser
 
 
-class Json(Fmt):
+class Json(Parser):
     def __init__(self):
         self.mode = 't'
 

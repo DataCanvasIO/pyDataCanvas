@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 
 from ..common import get_module_class
-from ..fmt import Fmt
 
 
 class Scheme(object):
     @staticmethod
-    def get(url, fmt):
-        scheme = 'file'
+    def get(spec):
+        url = spec['url']
+        scheme_name = 'file'
         index = url.find(':')
         if index >= 0:
-            scheme = url[0:index]
-        clazz = get_module_class(scheme, __name__)
-        fmt_obj = Fmt.get(fmt)
-        return clazz(url, fmt_obj)
+            scheme_name = url[0:index]
+        clazz = get_module_class(scheme_name, __name__)
+        return clazz(spec)
 
     def read(self):
         raise NotImplementedError('Method read is not implemented for "%s".' % self.__class__.__name__)

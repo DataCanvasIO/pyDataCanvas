@@ -24,7 +24,7 @@ def test_json_http():
         assert False
 
     url = 'http://localhost:5000'
-    i = DataSet(url, 'json')
+    i = DataSet(url=url, format='json')
     content_read = i.get_raw()
     assert content_read['hello'] == 'world'
     p.terminate()

@@ -2,7 +2,6 @@
 
 
 def main(params, inputs, outputs):
-    print(inputs.array)
     array = inputs.array.get_raw()
     result = outputs.result
     sum = 0
